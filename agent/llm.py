@@ -1,45 +1,53 @@
-"""The two model calls behind every explanation.
+"""The model call behind every explanation: one level per call, so the first answer is fast.
 
-  research(): Gemini with Google Search grounding gathers facts and the web sources behind them.
-  write():    Gemini with a response_schema turns those notes into an Explanation.
-
-They are separate calls because grounding and structured output are not combined in one
-request. The client is passed in so tests can use a fake one.
+Fast path: one Gemini call with Google Search grounding AND a response_schema (supported
+by Gemini 3 and later). If the model rejects that combination, fall back for good to two
+calls: research() with grounding, then write() with the schema.
+The client is passed in so tests can use a fake one.
 """
+import logging
 import os
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from .schema import Explanation
+from .schema import LEVELS, Explanation
+
+log = logging.getLogger(__name__)
 
 MAX_SOURCES = 6
 
-RESEARCH_PROMPT = """Research this question for an explainer that goes from a 5-year-old's level up to an expert's.
+_STYLE = """Write for {audience}
+{deeper}Plain text only: no markdown, HTML or citation markers. Emoji only in the diagram nodes.
+The diagram must teach the core idea at a glance; pick the type that fits the idea best.
+The 3 follow_ups are natural next questions on new angles, each a full question under 70
+characters. Do not offer "explain it simpler/deeper" as a follow-up: the page already has that."""
+
+_DEEPER = "The reader already read a simpler version, so add real depth instead of repeating it.\n"
+
+EXPLAIN_PROMPT = """You write "Explain like I'm 5" explainers. Search the web to check the facts, then explain
+the question below.
+""" + _STYLE + """
+
+Question: {question}"""
+
+RESEARCH_PROMPT = """Research this question for an explainer aimed at {audience}
 Question: {question}
 
-Write plain factual notes: the core mechanism, one or two numbers or names an expert would expect,
-common misconceptions, and anything still debated. No preamble."""
+Write short plain factual notes: the core mechanism, a striking number or name, and common
+misconceptions. No preamble."""
 
-WRITER_PROMPT = """You write "Explain like I'm 5" explainers. Using only the research notes and sources below,
-explain the question at four levels:
-  eli5:   a curious 5-year-old. Short words, one concrete everyday image, no jargon.
-  eli10:  a 10-year-old. Simple cause and effect, one new word explained.
-  eli15:  a high-school student. The real mechanism and the proper terms.
-  expert: a specialist. Precise terms, numbers, caveats and what is still open.
-Each level stands alone: do not say "as above". Cite sources inline as [n] using the numbers below,
-only where that source supports the sentence. If no source fits, cite nothing and lower the confidence.
-The diagram must teach the core idea at a glance. The 3 follow_ups are natural next questions the
-user would type, each a full question under 70 characters.
-Plain text only: no markdown, HTML or emoji.
+WRITER_PROMPT = """You write "Explain like I'm 5" explainers. Using the research notes below, explain the question.
+""" + _STYLE + """
 
 Question: {question}
 
 Research notes:
-{notes}
+{notes}"""
 
-Sources:
-{sources}"""
+# None until the first call tells us whether search + response_schema work together.
+_combined_ok: bool | None = None
 
 
 def make_client() -> genai.Client:
@@ -56,8 +64,23 @@ def model_name() -> str:
     return os.getenv("MODEL", "gemini-4-argon")
 
 
+def _thinking() -> genai_types.ThinkingConfig | None:
+    """Low thinking keeps answers quick. THINKING_LEVEL='' leaves the model default."""
+    level = os.getenv("THINKING_LEVEL", "low").strip()
+    return genai_types.ThinkingConfig(thinking_level=level.upper()) if level else None
+
+
+def _search() -> list[genai_types.Tool]:
+    return [genai_types.Tool(google_search=genai_types.GoogleSearch())]
+
+
+def _prompt_args(question: str, level: str) -> dict:
+    return {"question": question, "audience": LEVELS[level][2], "deeper": "" if level == "eli5" else _DEEPER}
+
+
 def sources_from(response) -> list[dict]:
-    """Deduped web sources from a grounded response: [{"title", "uri"}]."""
+    """Deduped web sources from a grounded response: [{"title", "uri"}]. Empty when the model
+    answered without searching."""
     seen, out = set(), []
     for cand in getattr(response, "candidates", None) or []:
         meta = getattr(cand, "grounding_metadata", None)
@@ -72,34 +95,57 @@ def sources_from(response) -> list[dict]:
     return out[:MAX_SOURCES]
 
 
-async def research(client, question: str) -> tuple[str, list[dict]]:
-    response = await client.aio.models.generate_content(
-        model=model_name(),
-        contents=RESEARCH_PROMPT.format(question=question),
-        config=genai_types.GenerateContentConfig(
-            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
-            temperature=0.2,
-        ),
-    )
-    return (response.text or "").strip(), sources_from(response)
-
-
-async def write(client, question: str, notes: str, sources: list[dict]) -> Explanation:
-    numbered = "\n".join(f"[{i}] {s['title']}" for i, s in enumerate(sources, 1)) or "(none)"
-    response = await client.aio.models.generate_content(
-        model=model_name(),
-        contents=WRITER_PROMPT.format(question=question, notes=notes or "(none)", sources=numbered),
-        config=genai_types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=Explanation,
-            temperature=0.4,
-        ),
-    )
+def _parsed(response) -> Explanation:
     if isinstance(response.parsed, Explanation):
         return response.parsed
     return Explanation.model_validate_json(response.text)
 
 
-async def explain(client, question: str) -> tuple[Explanation, list[dict]]:
-    notes, sources = await research(client, question)
-    return await write(client, question, notes, sources), sources
+async def _combined(client, question: str, level: str) -> tuple[Explanation, list[dict]]:
+    response = await client.aio.models.generate_content(
+        model=model_name(),
+        contents=EXPLAIN_PROMPT.format(**_prompt_args(question, level)),
+        config=genai_types.GenerateContentConfig(
+            tools=_search(), response_mime_type="application/json", response_schema=Explanation,
+            thinking_config=_thinking(), temperature=0.4,
+        ),
+    )
+    return _parsed(response), sources_from(response)
+
+
+async def research(client, question: str, level: str = "eli5") -> tuple[str, list[dict]]:
+    response = await client.aio.models.generate_content(
+        model=model_name(),
+        contents=RESEARCH_PROMPT.format(**_prompt_args(question, level)),
+        config=genai_types.GenerateContentConfig(tools=_search(), thinking_config=_thinking(), temperature=0.2),
+    )
+    return (response.text or "").strip(), sources_from(response)
+
+
+async def write(client, question: str, level: str, notes: str) -> Explanation:
+    response = await client.aio.models.generate_content(
+        model=model_name(),
+        contents=WRITER_PROMPT.format(notes=notes or "(none)", **_prompt_args(question, level)),
+        config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json", response_schema=Explanation,
+            thinking_config=_thinking(), temperature=0.4,
+        ),
+    )
+    return _parsed(response)
+
+
+async def explain(client, question: str, level: str = "eli5") -> tuple[Explanation, list[dict]]:
+    global _combined_ok
+    if _combined_ok is not False:
+        try:
+            result = await _combined(client, question, level)
+            _combined_ok = True
+            return result
+        except genai_errors.ClientError as exc:
+            # A 400 on the very first call means the model can't combine the two; anything else is real.
+            if _combined_ok or exc.code != 400:
+                raise
+            log.warning("search + response_schema in one call failed; using two calls from now on", exc_info=True)
+            _combined_ok = False
+    notes, sources = await research(client, question, level)
+    return await write(client, question, level, notes), sources

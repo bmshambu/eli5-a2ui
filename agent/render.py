@@ -1,6 +1,6 @@
 """A2UI v0.9 cards for the ELI5 agent: the explainer (Canvas + IFrameSrcdoc), welcome and error."""
 from . import a2ui, explainer
-from .schema import Explanation
+from .schema import LEVELS, Explanation
 
 FRAME_HEIGHT = 960  # the page scrolls inside the frame when it is longer
 
@@ -36,18 +36,18 @@ def _card(prefix: str, children: list[dict]) -> list[dict]:
     return a2ui.surface(prefix, comps)
 
 
-def explanation_card(e: Explanation, sources: list[dict]) -> list[dict]:
+def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = "eli5") -> list[dict]:
     """Opener card in chat; the explainer page opens in the side panel. Source links are repeated
     natively under the frame because links inside the sandboxed frame may not open."""
     children = ["frame"]
     comps = [
-        {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources), "height": FRAME_HEIGHT},
+        {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level), "height": FRAME_HEIGHT},
     ]
     if sources:
         links = " · ".join(f"[{i}. {_md_label(s['title'])}]({s['uri']})" for i, s in enumerate(sources, 1))
         comps.append(_text("sources", f"**Sources:** {links}", "caption"))
         children.append("sources")
-    root = {"id": "root", "component": "Canvas", "cardTitle": e.title, "cardDescription": e.one_liner,
+    root = {"id": "root", "component": "Canvas", "cardTitle": f"{e.title} · {LEVELS[level][0]}", "cardDescription": e.one_liner,
             "cardIcon": "lightbulb", "autoOpen": True, "children": children}
     return a2ui.surface("eli5", [root, *comps])
 
@@ -56,8 +56,8 @@ def welcome_card() -> list[dict]:
     buttons = [_ask_button(f"ex{i}", q) for i, q in enumerate(EXAMPLES)]
     return _card("eli5-welcome", [
         _text("title", "Explain like I'm 5", "h4"),
-        _text("intro", "Ask me about anything. I'll explain it four ways, from a 5-year-old's level up to an "
-                       "expert's, with a picture and the sources I used."),
+        _text("intro", "Ask me about anything. I'll explain it like you're 5, with a picture. "
+                       "Then you can go up to 10, 15 or expert level."),
         *buttons,
     ])
 
