@@ -33,6 +33,10 @@ The main use is KPMG staff uploading a document in GE chat and asking for it to 
 - An upload with no text, or with "explain this", gets the Expert briefing. "Explain this document like I'm 5" (the ELI5 button) and later questions in the same session reuse the latest uploaded document, which is found in the session history.
 - Each turn logs the kinds of parts it received (`turn parts: [...]`), so the first GE test shows exactly how GE delivers uploads.
 
+## Charts
+
+A section can carry a `chart` (bar, line or donut) when it turns on 3 or more comparable numbers. The prompt allows only numbers stated in the document or the sources, exactly as given, with a `source` note such as "Table 2, p. 7"; if the numbers are not there, there is no chart. Bars and labels are HTML so text stays at 14px or more at any panel width; series that don't match the labels are dropped rather than drawn wrong.
+
 ## Layout
 
 ```
@@ -45,6 +49,7 @@ agent/
   brand.py         palette, logo, and the photo catalogue the model chooses from
   assets/          KPMG logos (SVG) and brand/*.jpg web banners (about 515 KB in total)
   document.py      uploaded files from the user's turn -> parts Gemini reads (PDF, text, images, Word, PowerPoint, Excel)
+  charts.py        bar, line and donut charts for a section's numbers (HTML bars, SVG line/donut, brand palette)
   render.py        A2UI cards: explainer, welcome, error
   a2ui.py          v0.9 message helpers + the <a2a_datapart_json> DataPart wrapper
   validate.py      offline check against the pinned GE composite catalog

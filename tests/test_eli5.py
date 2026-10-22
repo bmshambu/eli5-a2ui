@@ -10,8 +10,8 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, brand, document, explainer, llm, render, validate, visuals
-from agent.schema import Diagram, DiagramNode, Explanation
+from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, render, validate, visuals
+from agent.schema import Chart, Diagram, DiagramNode, Explanation, Series
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
 Q = "Why is the sky blue?"
@@ -298,3 +298,32 @@ def test_page_has_save_as_pdf_with_print_layout():
     assert 'id="save"' in page and "window.print()" in page and "@media print" in page
     assert 'FILE="Why-is-the-sky-blue.html"' in page
     assert page.count("data-q=") == 4  # the save button is not an ask
+
+
+CHARTS = {
+    "bar": Chart(type="bar", title="Scattering vs wavelength", unit="x", labels=["Violet 400 nm", "Blue 450 nm", "Red 700 nm"],
+                 series=[Series(name="Relative", values=[9.4, 5.9, 1])], caption="Short waves scatter far more.", source="Table 1"),
+    "line": Chart(type="line", title="Fee by year", unit="£m", labels=["2023", "2024", "2025", "2026"],
+                  series=[Series(name="Fee", values=[1.2, 1.5, 2.25, 3])], caption="Fees more than doubled."),
+    "donut": Chart(type="donut", title="Air by volume", unit="%", labels=["Nitrogen", "Oxygen", "Other"],
+                   series=[Series(name="Share", values=[78, 21, 1])], caption="Nitrogen dominates."),
+}
+
+
+@pytest.mark.parametrize("kind", list(CHARTS))
+def test_every_chart_type_draws_with_exact_values(kind):
+    out = charts.render(CHARTS[kind])
+    assert out.startswith('<figure class="chart"') and CHARTS[kind].caption in out
+    expected = {"bar": ["9.4x", "5.9x", "1x"], "line": ["£1.2m", "£2.25m", "£3m"], "donut": ["78%", "21%", "1%"]}[kind]
+    assert all(v in out for v in expected)
+
+
+def test_chart_with_mismatched_series_is_skipped():
+    bad = Chart(type="bar", title="t", labels=["a", "b", "c"], series=[Series(name="s", values=[1])], caption="c")
+    assert charts.render(bad) == "" and charts.render(None) == ""
+
+
+def test_chart_appears_in_its_section():
+    sections = [SKY.sections[0].model_copy(update={"chart": CHARTS["donut"]})] + SKY.sections[1:]
+    page = explainer.page(SKY.model_copy(update={"sections": sections}), [], Q)
+    assert page.count('<figure class="chart"') == 1 and "Nitrogen" in page

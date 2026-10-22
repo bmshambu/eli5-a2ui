@@ -16,7 +16,7 @@ import html
 import json
 import re
 
-from . import brand, visuals
+from . import brand, charts, visuals
 from .schema import LEVELS, Explanation
 
 ASK_ACTION = "ask"
@@ -89,7 +89,7 @@ border:1px solid rgba(255,255,255,.6);padding:6px 12px;cursor:pointer}.save:hove
 @media print{:root{--bg:#fff;--ink:#00338D;--brand:#00338D;--muted:#666666;--line:#E5E5E5;--accent:#1E49E2;--tint5:#F3F6FF;--tint10:#E9EDFC}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}
 .pop{animation:none!important}.save,.note,.next,.next-label{display:none!important}
-.kpi,.node,figure,.points,.analogy,tr,.toc a{break-inside:avoid}h2,.label{break-after:avoid}.banner{max-height:60mm}}
+.kpi,.node,figure,.chart,.points,.analogy,tr,.toc a{break-inside:avoid}h2,.label{break-after:avoid}.banner{max-height:60mm}}
 """
 
 # Every [data-q] button asks its question once; then all of them lock so one click = one turn.
@@ -178,7 +178,7 @@ def _sections(e: Explanation) -> tuple[str, str]:
         points = f'<div class="points">{_bullets(s.points[:4])}</div>' if s.points else ""
         body.append(f'<section id="s{i}"><h2><span class="no">{i:02d}</span>{_esc(s.heading)}</h2>'
                     + (f'<div class="ref">From the document: {_esc(s.doc_ref)}</div>' if s.doc_ref else "") +
-                    f"{photo}{paras}{visuals.render(s.diagram, e.title)}{points}</section>")
+                    f"{photo}{paras}{charts.render(s.chart)}{visuals.render(s.diagram, e.title)}{points}</section>")
     contents = f'<div class="label">Contents</div><nav class="toc" style="--cols:{_cols(len(toc))}">{"".join(toc)}</nav>' if len(toc) > 1 else ""
     return contents, "".join(body)
 
@@ -206,7 +206,7 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}</style></head><body>"
+        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}</style></head><body>"
         f'{_cover(e, level, bool(documents))}'
         '<p class="note" id="note" hidden>This panel does not allow printing, so the page was sent as a download instead '
         f'(if your browser allowed it). Open the downloaded file, choose Print, then Save as PDF.</p><main class="wrap">{_kpis(e)}'

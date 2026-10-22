@@ -25,8 +25,13 @@ MAX_SOURCES = 6
 _STYLE = """Write for {audience}
 Length: {length}
 Plain text only: no markdown, HTML, emoji or citation markers.
-Give a section a diagram only where a picture teaches better than words (at least one section
-should have one), and pick the diagram type that fits the idea. Choose photos only from this
+Prefer visuals to long text. Give a section a diagram where a picture teaches better than words
+(at least one section should have one), and pick the diagram type that fits the idea.
+Give a section a chart when it turns on 3 or more comparable numbers (a trend, a breakdown, a
+comparison). Charts may only use numbers stated in the document or your sources, exactly as
+given: never estimate, interpolate or invent a value, and leave the chart out if the numbers
+are not there. Name where they come from in the chart's source. When a section has a chart or
+diagram, keep its paragraphs short and let the visual carry the detail. Choose photos only from this
 list of brand photos, by id; pick the closest fit, use each photo at most once, and give at
 most 2 sections a photo:
 {photos}

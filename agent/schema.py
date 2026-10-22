@@ -44,6 +44,22 @@ class Diagram(BaseModel):
     right_title: Optional[str] = Field(default=None, description="compare only: right column title.")
 
 
+class Series(BaseModel):
+    name: str = Field(description="What this series measures, e.g. 'Revenue' or '2025'.")
+    values: list[float] = Field(description="One value per label, in the same order.")
+
+
+class Chart(BaseModel):
+    type: Literal["bar", "line", "donut"] = Field(
+        description="bar = compare amounts across categories; line = change over time; donut = shares of one total.")
+    title: str = Field(description="What the chart shows, under 60 characters.")
+    unit: Optional[str] = Field(default=None, description="Unit for every value, e.g. '%', '£m', 'bn', 'people'.")
+    labels: list[str] = Field(description="Category names or time points, 2 to 8, short.")
+    series: list[Series] = Field(description="1 to 3 series (donut: exactly 1).")
+    caption: str = Field(description="One sentence: the takeaway of the chart.")
+    source: Optional[str] = Field(default=None, description="Where the numbers come from, e.g. 'Table 2, p. 7'.")
+
+
 class Stat(BaseModel):
     value: str = Field(description="A short striking number, e.g. '4x', '1.5 C' or '150 million km'.")
     label: str = Field(description="What the value means, under 60 characters.")
@@ -55,6 +71,8 @@ class Section(BaseModel):
     points: list[str] = Field(description="0 to 4 crisp key points for this section.")
     diagram: Optional[Diagram] = Field(
         default=None, description="A diagram where a picture explains this section better than words.")
+    chart: Optional[Chart] = Field(
+        default=None, description="A chart when this section turns on 3 or more comparable numbers stated in the source.")
     photo: Optional[PhotoId] = Field(default=None, description="A brand photo id that fits this section, or none.")
     doc_ref: Optional[str] = Field(
         default=None, description="When explaining a document: where this comes from in it, e.g. 'Section 3' or 'Slides 4-6'.")
