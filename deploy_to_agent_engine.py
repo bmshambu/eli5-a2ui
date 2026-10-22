@@ -15,7 +15,7 @@ GOOGLE_CLOUD_STAGING_BUCKET = os.getenv("GOOGLE_CLOUD_STAGING_BUCKET", "")
 GOOGLE_CLOUD_LOCATION       = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 AGENT_NAME                  = os.getenv("AGENT_NAME", "eli5-dev")
 AGENT_DISPLAY_NAME          = os.getenv("AGENT_DISPLAY_NAME", "ELI5 (Dev)")
-AGENT_DESCRIPTION           = os.getenv("AGENT_DESCRIPTION", "Explains any topic like you are 5, then 10, 15 and expert, with a diagram and sources.")
+AGENT_DESCRIPTION           = os.getenv("AGENT_DESCRIPTION", "Explains any topic as a detailed, KPMG-branded expert briefing with diagrams and sources, plus an ELI5 version on request.")
 
 # ── Agent env vars ───────────────────────────────────────────────────────────
 # The model settings always go to the deployed agent (Agent Engine sets GOOGLE_CLOUD_PROJECT itself).

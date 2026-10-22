@@ -8,7 +8,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, explainer, llm, render, validate, visuals
+from agent import a2ui, agent as eli5, brand, explainer, llm, render, validate, visuals
 from agent.schema import Diagram, DiagramNode, Explanation
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
@@ -65,25 +65,54 @@ def _components(messages):
 
 
 def test_explanation_card_validates_and_fits():
-    messages = render.explanation_card(SKY, SOURCES, Q, "eli10")
+    messages = render.explanation_card(SKY, SOURCES, Q)
     validate.check(messages)
     comps = _components(messages)
     assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "sources"]
-    assert comps["root"]["cardTitle"].endswith("ELI10")
-    assert a2ui.message_bytes(messages[1]) < 100_000
+    assert comps["root"]["cardTitle"].endswith("Expert")
+    assert a2ui.message_bytes(messages[1]) < 400_000  # cover + 2 banner photos inline
 
 
-def test_page_has_ladder_deeper_and_chips():
-    page = explainer.page(SKY, SOURCES, Q, "eli5")
-    assert '<button aria-current="true" disabled>ELI5</button>' in page
-    assert page.count("data-q=") == 3 + 1 + 3  # other levels, go deeper, follow-ups
-    assert "Go deeper: Explain it like I&#x27;m 10" in page and "a2ui_action" in page
+def test_worst_case_page_stays_under_limit():
+    """Biggest photos on every slot still fits GE's per-message budget."""
+    big = sorted(brand.PHOTO_IDS, key=lambda i: len(brand.photo_uri(i)), reverse=True)
+    sections = [s.model_copy(update={"photo": big[i + 1]}) for i, s in enumerate(SKY.sections)]
+    messages = render.explanation_card(SKY.model_copy(update={"hero_photo": big[0], "sections": sections}), SOURCES, Q)
+    validate.check(messages)
+    assert a2ui.message_bytes(messages[1]) < 800_000
+
+
+def test_every_brand_photo_exists():
+    for p in brand.PHOTOS:
+        assert (brand.ASSETS / "brand" / f"{p.id}.jpg").is_file(), p.id
+    assert brand.logo_svg().startswith("<svg") and "metadata" not in brand.logo_svg()
+
+
+def test_expert_page_is_branded_and_offers_eli5():
+    page = explainer.page(SKY, SOURCES, Q)
+    assert 'class="logo"' in page and "Explained · Expert" in page and "KPMG. Make the Difference." in page
+    assert page.count('<section id="s') == 4 and page.count('class="kpi"') == 4
+    assert "Glossary" in page and "Caveats" in page and "Contents" in page
+    assert page.count("data-q=") == 1 + 3  # ELI5, follow-ups
+    assert "ELI10" not in page and "Go deeper" not in page and "a2ui_action" in page
     ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
-    assert ctx == {"prompt": "Explain it like I'm 10: " + Q, "level": "eli10", "question": Q}
+    assert ctx == {"prompt": "Explain it like I'm 5: " + Q, "level": "eli5", "question": Q}
 
 
-def test_expert_page_has_no_go_deeper():
-    assert "Go deeper" not in explainer.page(SKY, [], Q, "expert")
+def test_eli5_page_offers_expert():
+    ctx = json.loads(explainer.html.unescape(explainer.page(SKY, [], Q, "eli5").split('data-ctx="')[1].split('"')[0]))
+    assert ctx["level"] == "expert"
+
+
+def test_section_photos_capped_and_never_repeat_cover():
+    sections = [s.model_copy(update={"photo": SKY.hero_photo if i == 0 else s.photo}) for i, s in enumerate(SKY.sections)]
+    page = explainer.page(SKY.model_copy(update={"sections": sections}), [], Q)
+    assert page.count('class="banner"') == explainer.MAX_SECTION_PHOTOS
+    assert page.count(brand.photo_uri(SKY.hero_photo)) == 1
+
+
+def test_page_has_no_emoji():
+    assert not any(ord(ch) >= 0x1F300 for ch in explainer.page(SKY, SOURCES, Q))
 
 
 def test_page_escapes_model_text():
@@ -94,8 +123,7 @@ def test_page_escapes_model_text():
 
 @pytest.mark.parametrize("kind", ["flow", "cycle", "parts", "compare"])
 def test_every_diagram_type_draws(kind):
-    nodes = [DiagramNode(emoji="🔵", label=f"Node {i}", note="a short note", side="left" if i % 2 else "right")
-             for i in range(5)]
+    nodes = [DiagramNode(label=f"Node {i}", note="a short note", side="left" if i % 2 else "right") for i in range(5)]
     out = visuals.render(Diagram(type=kind, caption="c", nodes=nodes, left_title="L", right_title="R"), "Hub")
     assert out.startswith("<figure") and out.count("Node ") == (10 if kind == "cycle" else 5)  # cycle: ring + legend
 
@@ -105,29 +133,29 @@ def test_welcome_and_error_cards_validate():
     validate.check(render.error_card("Why?"))
 
 
-LAST = {"question": Q, "level": "eli5"}
+LAST = {"question": Q, "level": "expert"}
 
 
 @pytest.mark.parametrize("text,last,expected", [
     ("hi", None, None),
     ("  ", None, None),
-    (Q, None, (Q, "eli5")),
-    ("Explain it like I'm 10: " + Q, None, (Q, "eli10")),
-    ("explain black holes like I am 15 years old", None, ("black holes", "eli15")),
+    (Q, None, (Q, "expert")),
+    ("Explain it like I'm 5: " + Q, None, (Q, "eli5")),
+    ("explain black holes like I am five years old", None, ("black holes", "eli5")),
     ("ELI expert: how do vaccines work?", None, ("how do vaccines work?", "expert")),
-    ("Explain it like I'm an expert", LAST, (Q, "expert")),
-    ("like im 10", LAST, (Q, "eli10")),
-    ("like im 10", None, None),
-    ("go deeper", {"question": Q, "level": "eli10"}, (Q, "eli15")),
-    ("go deeper", {"question": Q, "level": "expert"}, (Q, "expert")),
+    ("like im 5", LAST, (Q, "eli5")),
+    ("like im 10", LAST, (Q, "eli5")),
+    ("like im 5", None, None),
+    ("go deeper", {"question": Q, "level": "eli5"}, (Q, "expert")),
 ])
 def test_parse(text, last, expected):
     assert eli5.parse(text, last) == expected
 
 
 @pytest.mark.parametrize("action,expected", [
-    ({"name": "ask", "context": {"prompt": "x", "level": "eli15", "question": Q}}, (Q, "eli15")),
-    ({"name": "ask", "context": {"prompt": "Why are sunsets red?"}}, ("Why are sunsets red?", "eli5")),
+    ({"name": "ask", "context": {"prompt": "x", "level": "eli5", "question": Q}}, (Q, "eli5")),
+    ({"name": "ask", "context": {"prompt": "Why are sunsets red?"}}, ("Why are sunsets red?", "expert")),
+    ({"name": "ask", "context": {"prompt": "x", "level": "eli10", "question": Q}}, ("x", "expert")),
     ({"name": "other", "context": {"prompt": "x"}}, None),
 ])
 def test_click_routing(action, expected):
@@ -135,12 +163,13 @@ def test_click_routing(action, expected):
 
 
 def test_one_grounded_call_per_answer(fake):
-    expl, sources = asyncio.run(llm.explain(eli5._client, Q, "eli10"))
+    expl, sources = asyncio.run(llm.explain(eli5._client, Q))
     assert len(fake.calls) == 1 and [s["uri"] for s in sources] == [s["uri"] for s in SOURCES]
     contents, config = fake.calls[0]
     assert config.tools[0].google_search is not None and config.response_schema is Explanation
     assert config.thinking_config.thinking_level == "LOW"
-    assert "10-year-old" in contents and "Question: " + Q in contents
+    assert "specialist reader" in contents and "Question: " + Q in contents
+    assert "- frames-in-clouds:" in contents  # the photo catalogue
 
 
 def test_falls_back_to_two_calls_when_model_cannot_combine(monkeypatch):
@@ -156,7 +185,7 @@ def test_respond_failure_gives_retry_card(monkeypatch):
     text, messages, remember = asyncio.run(eli5.respond(_text_content("Why?")))
     validate.check(messages)
     assert remember is None
-    assert eli5.parse(_components(messages)["retry"]["action"]["event"]["context"]["prompt"], None) == ("Why?", "eli5")
+    assert eli5.parse(_components(messages)["retry"]["action"]["event"]["context"]["prompt"], None) == ("Why?", "expert")
 
 
 def test_agent_remembers_question_for_level_requests(fake):
@@ -164,13 +193,13 @@ def test_agent_remembers_question_for_level_requests(fake):
         runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
         session = await runner.session_service.create_session(app_name="eli5", user_id="u")
         out = []
-        for msg in (_text_content(Q), _text_content("like I'm 15")):
+        for msg in (_text_content(Q), _text_content("like I'm 5")):
             out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
         return out
 
     first, second = asyncio.run(run())
     parts = [p for e in first if e.content for p in e.content.parts]
-    assert parts[0].text.startswith("**Why is the sky blue?** (ELI5)")
+    assert parts[0].text.startswith("**Why is the sky blue?** (Expert)")
     assert len([p for p in parts if p.inline_data]) == 2
-    assert second[0].content.parts[0].text.startswith("**Why is the sky blue?** (ELI15)")
-    assert "15-year-old" not in fake.calls[0][0] and "high-school" in fake.calls[1][0]
+    assert second[0].content.parts[0].text.startswith("**Why is the sky blue?** (ELI5)")
+    assert "5-year-old" not in fake.calls[0][0] and "5-year-old" in fake.calls[1][0]
