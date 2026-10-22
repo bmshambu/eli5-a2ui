@@ -40,6 +40,9 @@ diagram, keep its paragraphs short and let the visual carry the detail. Choose p
 list of brand photos, by id; pick the closest fit, use each photo at most once, and give at
 most 2 sections a photo:
 {photos}
+Choose the theme that fits the topic (AI topics: ai; platforms and architectures: ai-platform;
+finance and numbers-led material: finance-data; anything else: corporate) and take the cover photo
+from that theme's list.
 The 3 follow_ups are natural next questions on new angles, each a full question under 70
 characters. Do not offer a simpler or deeper explanation as a follow-up: the page already has that."""
 

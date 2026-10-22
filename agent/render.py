@@ -46,7 +46,7 @@ def explanation_card(e: Explanation, sources: list[dict], question: str, level: 
     comps = [
         {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level, documents), "height": FRAME_HEIGHT},
         {"id": "pdf", "component": "MaterialButton", "label": "Download PDF", "variant": "stroked", "leadingIcon": "download",
-         "action": {"event": {"name": PDF_ACTION, "context": {"question": question, "level": level}}}},
+         "action": {"event": {"name": PDF_ACTION, "context": {"question": question, "level": level, "theme": e.theme}}}},
     ]
     if sources:
         links = " · ".join(f"[{i}. {_md_label(s['title'])}]({s['uri']})" for i, s in enumerate(sources, 1))

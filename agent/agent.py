@@ -22,6 +22,7 @@ from google.adk.events import Event, EventActions
 from google.genai import types as genai_types
 
 from . import a2ui, document, explainer, llm, pdf, render, validate
+from .brand import THEMES
 from .schema import DEFAULT_LEVEL, LEVELS, Explanation
 
 log = logging.getLogger(__name__)
@@ -112,6 +113,55 @@ class Reply(NamedTuple):
     files: tuple = ()  # file parts, e.g. the PDF
 
 
+# "switch to the AI theme", "use the finance data theme", "show it in the corporate look"
+_THEME_TEXT = re.compile(r"^\W*(?:(?:please|can\s+you|could\s+you)\s+)?(?:switch|change|use|show|try|make|put|give)\b.{0,30}?\b(?:kpmg\s+)?"
+                         r"(corporate|ai[\s-]*platform|finance(?:[\s-]*data)?|ai)\s+(?:theme|look|style)\b", re.I)
+
+
+def _theme_id(name: str) -> str:
+    name = re.sub(r"[\s-]+", "-", name.lower())
+    return "finance-data" if name.startswith("finance") else name
+
+
+def with_theme(expl: Explanation, theme: str) -> Explanation:
+    """The explanation in another theme; the cover photo changes unless it already suits it."""
+    heroes = THEMES[theme].heroes
+    return expl.model_copy(update={"theme": theme, "hero_photo": expl.hero_photo if expl.hero_photo in heroes else heroes[0]})
+
+
+async def _shown(question: str, level: str, pages: list | None, docs: list | None) -> tuple[Explanation, list, list]:
+    """The explanation shown earlier (from session state), or made again if it is no longer there."""
+    shown = next((p for p in reversed(pages or []) if p.get("question") == question and p.get("level") == level), None)
+    if shown:
+        return Explanation.model_validate(shown["explanation"]), shown["sources"], shown["documents"]
+    expl, sources = await llm.explain(_get_client(), question, level, docs)
+    return expl, sources, [d.name for d in docs or []]
+
+
+def _card(expl: Explanation, sources: list, question: str, level: str, names: list) -> tuple[list[dict], dict]:
+    messages = render.explanation_card(expl, sources, question, level, names)
+    validate.check(messages)
+    return messages, {"question": question, "level": level, "explanation": expl.model_dump(mode="json"),
+                      "sources": sources, "documents": names}
+
+
+async def switch_theme(ctx: dict, pages: list | None = None, docs: list | None = None) -> Reply:
+    """The same explanation re-shown in another KPMG theme, from session state (no model call)."""
+    question = str(ctx.get("question") or "")[:MAX_QUESTION_CHARS]
+    level = ctx.get("level") if ctx.get("level") in LEVELS else DEFAULT_LEVEL
+    theme = ctx.get("theme")
+    if not question or theme not in THEMES:
+        return Reply("Sorry, I couldn't tell which theme or explanation you meant. Ask the question again.", [])
+    try:
+        expl, sources, names = await _shown(question, level, pages, docs)
+        expl = with_theme(expl, theme)
+        messages, page = _card(expl, sources, question, level, names)
+    except Exception:  # noqa: BLE001
+        log.exception("theme switch failed for %r to %s", question, theme)
+        return Reply("Sorry, I couldn't switch the theme. Try the button again.", [])
+    return Reply(f"**{expl.title}** in the {THEMES[theme].name} theme.", messages, {"question": question, "level": level}, page)
+
+
 async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None = None) -> Reply:
     """The PDF of the explanation the button was under. It is rebuilt from session state; an
     explanation that is no longer there (an old card) is made again."""
@@ -119,13 +169,10 @@ async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None =
     level = ctx.get("level") if ctx.get("level") in LEVELS else DEFAULT_LEVEL
     if not question:
         return Reply("Sorry, I couldn't tell which explanation to save. Ask the question again.", [])
-    shown = next((p for p in reversed(pages or []) if p.get("question") == question and p.get("level") == level), None)
     try:
-        if shown:
-            expl, sources, names = Explanation.model_validate(shown["explanation"]), shown["sources"], shown["documents"]
-        else:
-            expl, sources = await llm.explain(_get_client(), question, level, docs)
-            names = [d.name for d in docs or []]
+        expl, sources, names = await _shown(question, level, pages, docs)
+        if ctx.get("theme") in THEMES:  # the theme of the card the button was under
+            expl = with_theme(expl, ctx["theme"])
         data = pdf.build(expl, sources, level, names)
     except Exception:  # noqa: BLE001  (the user gets a message, not a broken turn)
         log.exception("pdf failed for %r at %s", question, level)
@@ -142,6 +189,11 @@ async def respond(content, last: dict | None = None, docs: list | None = None, p
     action = a2ui.extract_action(content)
     if action and action.get("name") == render.PDF_ACTION:
         return await download_pdf(action.get("context") or {}, pages, docs)
+    if action and action.get("name") == explainer.THEME_ACTION:
+        return await switch_theme(action.get("context") or {}, pages, docs)
+    m = None if action else _THEME_TEXT.match(_user_text(content))
+    if m and last:
+        return await switch_theme({**last, "theme": _theme_id(m.group(1))}, pages, docs)
     asked = question_for(content, last)
     if docs and asked is None:
         # A bare upload (or "hi", or "simpler" with nothing asked yet) means: explain the document.
@@ -152,11 +204,7 @@ async def respond(content, last: dict | None = None, docs: list | None = None, p
     question, level = asked
     try:
         expl, sources = await llm.explain(_get_client(), question, level, docs)
-        names = [d.name for d in docs or []]
-        messages = render.explanation_card(expl, sources, question, level, names)
-        validate.check(messages)
-        page = {"question": question, "level": level, "explanation": expl.model_dump(mode="json"),
-                "sources": sources, "documents": names}
+        messages, page = _card(expl, sources, question, level, [d.name for d in docs or []])
         return Reply(f"**{expl.title}** ({LEVELS[level][0]}): {expl.one_liner}", messages,
                      {"question": question, "level": level}, page)
     except Exception:  # the user gets a retry card instead of a broken turn

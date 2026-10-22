@@ -153,6 +153,46 @@ PHOTOS = (
           "a team at night with glowing data: AI at work, cyber operations, analytics teams", 0.6),
     Photo("handshake-poster", "06-objects-and-textures/dk-annual-report-2025_p08_02.jpg",
           "a framed poster of a handshake in light: partnership, trust, deals, M&A", 0.3),
+    # 2026 AI Pulse deck: neon backgrounds for the KPMG AI theme.
+    Photo("neon-corridor", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p01.jpg",
+          "a pink and blue neon corridor on a cobalt grid floor: AI, agents, the future, a path forward", 0.8),
+    Photo("neon-vortex", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p02.jpg",
+          "a spiralling neon vortex on black: AI models, deep learning, complexity, acceleration"),
+    Photo("neon-silk", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p03.jpg",
+          "glowing silky waves in orange and violet: generative AI, creativity, signals, fluid change"),
+    Photo("neon-wave-tunnel", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p04.jpg",
+          "a neon tunnel with a flowing light line: data pipelines, neural networks, AI journeys"),
+    Photo("light-rise", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p05.jpg",
+          "neon light streams rising into a peak: growth, adoption curves, momentum, scale", 0.5, 0.7),
+    Photo("light-burst", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p06.jpg",
+          "light streaks bursting out of a dark tunnel: speed, breakthroughs, compute, the pace of AI"),
+    Photo("signal-wave", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p07.jpg",
+          "a glowing pink sound wave on black: voice, audio, signals, frequency, sentiment"),
+    Photo("neon-hall", "07-ai-neon-backgrounds/ai-pulse-q4-2025_p08.jpg",
+          "a calm cobalt hall lined with neon tubes: AI governance, order, infrastructure, data centres", 0.75),
+    # 2026 Hong Kong Banking Outlook: imagery for the KPMG Finance Data theme.
+    Photo("finance-dollar", "08-finance-and-banking/hk-banking-outlook-2026_p01_002.jpg",
+          "a glowing digital dollar sign over a city skyline on cobalt: banking, money, finance, markets", 0.8),
+    Photo("blue-diagonals", "08-finance-and-banking/hk-banking-outlook-2026_p02_006.jpg",
+          "diagonal beams of blue light on navy: momentum, direction, financial services, strategy"),
+    Photo("glass-towers", "08-finance-and-banking/hk-banking-outlook-2026_p03_007.jpg",
+          "blue glass office towers seen from below: banks, corporations, financial centres, real estate", 0.5, 0.3),
+    Photo("data-dots", "08-finance-and-banking/hk-banking-outlook-2026_p03_008.jpg",
+          "a field of glowing teal data dots on navy: data, analytics, digital banking, quantities"),
+    Photo("blue-stripes", "08-finance-and-banking/hk-banking-outlook-2026_p04_013.jpg",
+          "bold cobalt and cyan diagonal stripes: outlooks, trends, forward motion, change"),
+    Photo("wave-mesh", "08-finance-and-banking/hk-banking-outlook-2026_p07_030.jpg",
+          "a violet wireframe wave under a deep blue sky: volatility, risk, markets moving, modelling", 0.5, 0.8),
+    Photo("glass-rings-glow", "08-finance-and-banking/hk-banking-outlook-2026_p08_032.jpg",
+          "glowing glass rings with blue light trails: payments, flows, networks, fintech"),
+    Photo("cyber-locks", "08-finance-and-banking/hk-banking-outlook-2026_p10_046.jpg",
+          "binary digits and glowing padlocks: cybersecurity, fraud, privacy, data protection"),
+    Photo("chart-landscape", "08-finance-and-banking/hk-banking-outlook-2026_p12_062.jpg",
+          "a 3D landscape of bar charts and a rising line in pink and blue: financial results, KPIs, growth"),
+    Photo("light-diagonals", "08-finance-and-banking/hk-banking-outlook-2026_p13_064.jpg",
+          "light blue diagonal panels: clarity, optimism, a clean background for numbers"),
+    Photo("glass-rings", "08-finance-and-banking/hk-banking-outlook-2026_p14_070.jpg",
+          "clear glass rings on pale blue: stability, liquidity, capital, interlocking parts"),
 )
 PHOTO_IDS = tuple(p.id for p in PHOTOS)
 
@@ -168,6 +208,32 @@ ICONS = {
 ICON_IDS = tuple(ICONS)
 ICON_HELP = "; ".join(f"{k} = {v}" for k, v in ICONS.items()) + "."
 DEFAULT_HERO = "blue-arcs"
+
+
+class Theme(NamedTuple):
+    name: str
+    use_for: str  # what the model reads when choosing
+    heroes: tuple  # cover photos that fit the theme, best first
+
+
+# The KPMG theme recipes in brand/extract/08-themes. Each answer uses one; the page and the
+# PDF follow its palette and layout rules (explainer.THEME_CSS, pdf.COVERS).
+THEMES = {
+    "corporate": Theme("KPMG Corporate", "the everyday KPMG look: proposals, reports, policies and any topic "
+                       "without a stronger flavour. Use it when unsure.",
+                       ("walk-through-frames", "frames-in-clouds", "light-tunnel", "mirror-hall")),
+    "ai": Theme("KPMG AI", "AI, agentic AI, GenAI, machine learning, data and technology thought leadership, "
+                "AI survey highlights.", ("neon-corridor", "neon-hall", "neon-wave-tunnel", "light-burst")),
+    "ai-platform": Theme("KPMG AI Platform", "enterprise AI platforms, target architectures, technology operating "
+                         "models, pilot-to-scale roadmaps: how the pieces fit together.",
+                         ("neon-city", "light-tunnel", "floating-cubes")),
+    "finance-data": Theme("KPMG Finance Data", "banking and capital markets, financial results, sector outlooks, "
+                          "KPI packs, annual reports: when the numbers lead.",
+                          ("finance-dollar", "glass-towers", "chart-landscape", "blue-diagonals")),
+}
+THEME_IDS = tuple(THEMES)
+DEFAULT_THEME = "corporate"
+THEME_HELP = "; ".join(f"{k} = {t.use_for} Cover photos: {', '.join(t.heroes)}" for k, t in THEMES.items())
 
 
 def catalogue() -> str:

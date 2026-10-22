@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .brand import ICON_HELP, ICON_IDS, PHOTO_IDS
+from .brand import DEFAULT_THEME, ICON_HELP, ICON_IDS, PHOTO_IDS, THEME_HELP, THEME_IDS
 
 # key -> (short label, how the user asks for it, who it is written for, how much to write)
 LEVELS = {
@@ -106,7 +106,10 @@ class Explanation(BaseModel):
     confidence: Literal["high", "medium", "low"] = Field(
         description="How settled the answer is: high = settled science or fact; medium = mostly agreed; "
                     "low = contested or unknown.")
-    hero_photo: PhotoId = Field(description="The brand photo id that best fits the whole topic.")
+    theme: Literal[THEME_IDS] = Field(
+        default=DEFAULT_THEME, description="The KPMG theme recipe whose look fits the topic: " + THEME_HELP)
+    hero_photo: PhotoId = Field(description="The brand photo id that best fits the whole topic, preferably one of "
+                                            "the chosen theme's cover photos.")
     summary: str = Field(description="An executive summary paragraph of 3 to 5 sentences.")
     analogy: Optional[str] = Field(default=None, description="One everyday comparison that makes the idea click.")
     takeaways: list[str] = Field(description="3 or 4 key takeaways, one sentence each.")

@@ -79,7 +79,7 @@ def _bars(c: Chart, series) -> str:
             f'<div class="bar"><span class="fill" style="--s:{SERIES[i]};width:{max(abs(vals[j]) / top * 82, 0.5):.1f}%"></span>'
             f"{_e(fmt(vals[j], c.unit))}</div>" for i, (_, vals) in enumerate(series))
         rows.append(f'<span class="lab">{_e(label)}</span><div class="grp">{bars}</div>')
-    return _legend(series) + f'<div class="bars">{"".join(rows)}</div>'
+    return _legend(series) + f'<div class="bars{" one" if len(series) == 1 else ""}">{"".join(rows)}</div>'
 
 
 def _line(c: Chart, series) -> str:

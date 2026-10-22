@@ -17,7 +17,20 @@ Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718d
 
 The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layouts`: a Cobalt-to-KPMG-Blue cover with the white logo and a duotone brand photo, a strip of key stats, an executive summary and takeaways, numbered contents, 4 or 5 sections (paragraphs, a banner photo on up to two, a diagram, key points), caveats, a glossary, sources, then the "Explain it in a simpler way" button and follow-up questions. Diagrams (`visuals.py`: flow, cycle, parts or compare) use square numbered markers and the brand palette instead of emoji. The model picks photos by id from the catalogue in `brand.py`, so only curated brand images can appear. If a model call fails the user gets a card with a retry button, not a broken turn.
 
-**Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full, and with "reduce motion" switched on it is still.
+**Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full. When "reduce motion" is on (Windows "Animation effects" off, common on managed laptops), the page keeps only fades and count-ups, and a **Play motion** button on the cover turns the full motion poster on.
+
+## Themes
+
+Each answer uses one of the four KPMG theme recipes in `brand/extract/08-themes`. Each recipe is a `.recipe.md` file with a `.demo.tsx` live preview, and `index.html` there shows all four. The model picks the theme with the `theme` field and takes the cover photo from that theme's list in `brand.THEMES`:
+
+| Theme | Used for | On the page |
+|---|---|---|
+| `corporate` (default) | everyday topics, reports, policies | Cobalt cover, white pages, KPMG Blue text, Pale Blue last words in the title |
+| `ai` | AI, agentic AI, GenAI, data and tech | dark: blue neon wash on every page, glowing Pacific Blue numbers, glass panels, capsule buttons, Pacific last words in the title |
+| `ai-platform` | platforms, architectures, roadmaps | navy data-city cover, white pages, chevrons ramping Tint 20 → Light Blue → Pacific → Cobalt |
+| `finance-data` | banking, results, outlooks, KPI packs | Cobalt cover carrying three headline figures, a Pacific/Purple/Light Blue tab strip, Cobalt titles, single-series bars in Pacific with the latest in KPMG Blue, ruled tables |
+
+**Switching theme.** A row of theme buttons sits under the cover, and "switch to the AI theme" typed in chat works too. Either one re-shows the same explanation in the other theme from session state, with no new model call. The cover photo changes unless it already suits the theme, and Download PDF on that card uses the theme it shows. `explainer.THEME_CSS` holds the page rules and `pdf.COVERS` holds the PDF covers. PDF inner pages stay white in every theme so they print well. The 20 photos from the 2026 AI Pulse deck and the Hong Kong Banking Outlook (`04-photos/07-ai-neon-backgrounds`, `08-finance-and-banking`) are in the catalogue too, which now has 75 photos. To add a theme, follow `08-themes/README.md`, then add an entry to `brand.THEMES`, `THEME_CSS` and `COVERS`.
 
 ## Uploaded documents
 
