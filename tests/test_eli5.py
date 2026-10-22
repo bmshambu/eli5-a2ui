@@ -11,7 +11,7 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
 from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, render, validate, visuals
-from agent.schema import Chart, Diagram, DiagramNode, Explanation, Series
+from agent.schema import Chart, Diagram, DiagramNode, Explanation, Series, Stat
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
 Q = "Why is the sky blue?"
@@ -123,11 +123,36 @@ def test_page_escapes_model_text():
     assert "<script>alert(1)" not in page and 'onclick="x' not in page
 
 
-@pytest.mark.parametrize("kind", ["flow", "cycle", "parts", "compare"])
+DIAGRAM_TYPES = ["flow", "cycle", "parts", "compare", "funnel", "roadmap", "timeline", "staircase", "pyramid", "matrix", "pillars"]
+
+
+@pytest.mark.parametrize("kind", DIAGRAM_TYPES)
 def test_every_diagram_type_draws(kind):
-    nodes = [DiagramNode(label=f"Node {i}", note="a short note", side="left" if i % 2 else "right") for i in range(5)]
-    out = visuals.render(Diagram(type=kind, caption="c", nodes=nodes, left_title="L", right_title="R"), "Hub")
-    assert out.startswith("<figure") and out.count("Node ") == (10 if kind == "cycle" else 5)  # cycle: ring + legend
+    nodes = [DiagramNode(label=f"Node {i}", note=f"note {i}", value=f"{(5 - i) * 100}", side="left" if i % 2 else "right")
+             for i in range(5)]
+    out = visuals.render(Diagram(type=kind, caption="c", nodes=nodes, left_title="L", right_title="R",
+                                 x_axis="Ease", y_axis="Value"), "Hub")
+    shown = 4 if kind in ("matrix", "pillars") else 5  # 2x2 and pillar rows take at most 4
+    assert out.startswith("<figure") and all(f"Node {i}" in out for i in range(shown))
+    assert all(f"note {i}" in out for i in range(shown))
+
+
+def test_schema_offers_every_drawn_diagram_type():
+    assert set(Diagram.model_fields["type"].annotation.__args__) == set(DIAGRAM_TYPES)
+
+
+def test_funnel_shows_stage_conversion():
+    nodes = [DiagramNode(label=l, note="n", value=v) for l, v in [("Leads", "10,000"), ("Deals", "4,200")]]
+    assert "42%" in visuals.render(Diagram(type="funnel", caption="c", nodes=nodes), "t")
+
+
+def test_key_stat_icons_are_inline_and_follow_colour():
+    stats = [Stat(value="680", label="people", icon="people-group"), Stat(value="1.6", label="revenue")]
+    page = explainer.page(SKY.model_copy(update={"key_stats": stats}), [], Q)
+    assert page.count('class="ic"') == 1 and 'stroke="currentColor"' in page
+    for icon in brand.ICON_IDS:
+        svg = brand.icon_svg(icon)
+        assert svg.startswith("<svg") and "metadata" not in svg and "currentColor" in svg
 
 
 def test_welcome_and_error_cards_validate():

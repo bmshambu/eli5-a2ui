@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .brand import PHOTO_IDS
+from .brand import ICON_HELP, ICON_IDS, PHOTO_IDS
 
 # key -> (short label, how the user asks for it, who it is written for, how much to write)
 LEVELS = {
@@ -31,17 +31,29 @@ class DiagramNode(BaseModel):
     note: str = Field(description="One short line, under 70 characters.")
     side: Optional[Literal["left", "right"]] = Field(
         default=None, description="Only for type 'compare': which column this node belongs to.")
+    value: Optional[str] = Field(
+        default=None, description="funnel: the count at this stage; timeline: the year or date; roadmap: the dates; "
+                                  "pillars: a headline stat. Only values stated in the source.")
 
 
 class Diagram(BaseModel):
-    type: Literal["flow", "cycle", "parts", "compare"] = Field(
-        description="flow = steps in order; cycle = steps that loop back to the start; "
-                    "parts = pieces of one whole; compare = two things side by side.")
+    type: Literal["flow", "cycle", "parts", "compare", "funnel", "roadmap", "timeline", "staircase",
+                  "pyramid", "matrix", "pillars"] = Field(
+        description="flow = steps of a process in order; cycle = steps that loop back to the start; "
+                    "parts = pieces of one whole; compare = two things side by side; "
+                    "funnel = stages that narrow (pipeline, conversion), widest first; "
+                    "roadmap = phases of a plan with dates; timeline = dated milestones; "
+                    "staircase = maturity levels from lowest to highest; "
+                    "pyramid = a hierarchy, top (most specific) first, foundation last; "
+                    "matrix = exactly 4 quadrants: top-left, top-right, bottom-left, bottom-right; "
+                    "pillars = 3 or 4 key messages side by side, each with a headline stat.")
     caption: str = Field(description="One sentence saying what the picture shows.")
     center: Optional[str] = Field(default=None, description="parts and cycle only: the whole thing, 1 to 3 words.")
     nodes: list[DiagramNode] = Field(description="3 to 6 nodes (compare: 2 to 4 per side).")
     left_title: Optional[str] = Field(default=None, description="compare only: left column title.")
     right_title: Optional[str] = Field(default=None, description="compare only: right column title.")
+    x_axis: Optional[str] = Field(default=None, description="matrix only: what the horizontal axis measures, low to high.")
+    y_axis: Optional[str] = Field(default=None, description="matrix only: what the vertical axis measures, low to high.")
 
 
 class Series(BaseModel):
@@ -63,6 +75,8 @@ class Chart(BaseModel):
 class Stat(BaseModel):
     value: str = Field(description="A short striking number, e.g. '4x', '1.5 C' or '150 million km'.")
     label: str = Field(description="What the value means, under 60 characters.")
+    icon: Optional[Literal[ICON_IDS]] = Field(
+        default=None, description="A brand line icon that fits the stat, if one does: " + ICON_HELP)
 
 
 class Section(BaseModel):

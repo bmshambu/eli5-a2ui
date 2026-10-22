@@ -37,6 +37,7 @@ body{margin:0;font:15px/1.6 Arial,"Helvetica Neue",Helvetica,sans-serif;backgrou
 .cover .in{position:relative;padding:18px 22px 22px}
 .cover svg.logo{height:30px;width:auto;display:block;margin-bottom:26px}
 .eyebrow{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:#ACEAFF;font-weight:700}
+.cover h1,h2{font-family:"KPMG Bold","Arial Narrow","Helvetica Neue Condensed",Arial,sans-serif;font-stretch:condensed}
 .cover h1{font-size:30px;line-height:1.15;margin:6px 0 10px;font-weight:700;max-width:30ch}
 .cover .lede{font-size:17px;line-height:1.45;color:#fff;margin:0 0 14px;max-width:46ch}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -45,6 +46,7 @@ body{margin:0;font:15px/1.6 Arial,"Helvetica Neue",Helvetica,sans-serif;backgrou
 .conf.medium{background:#76D2FF}.conf.low{background:#B497FF}
 .kpis{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:10px;margin:18px 0 6px}
 .kpi{background:var(--tint10);padding:14px 14px 12px;border-top:4px solid var(--k)}
+.kpi .ic{display:block;color:var(--k);margin-bottom:6px}.kpi .ic svg{height:40px;width:auto;display:block}
 .kpi .v{display:block;font-size:30px;font-weight:700;line-height:1.1;color:var(--k)}
 .kpi .l{display:block;font-size:14px;color:var(--ink);margin-top:4px}
 h2{font-size:22px;line-height:1.25;margin:28px 0 10px;color:var(--brand);display:flex;gap:12px;align-items:baseline}
@@ -149,7 +151,9 @@ def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
 
 def _kpis(e: Explanation) -> str:
     tiles = "".join(
-        f'<div class="kpi" style="--k:{_KPI_COLOURS[i % 4]}"><span class="v">{_esc(s.value)}</span><span class="l">{_esc(s.label)}</span></div>'
+        f'<div class="kpi" style="--k:{_KPI_COLOURS[i % 4]}">'
+        + (f'<span class="ic" aria-hidden="true">{brand.icon_svg(s.icon)}</span>' if s.icon else "")
+        + f'<span class="v">{_esc(s.value)}</span><span class="l">{_esc(s.label)}</span></div>'
         for i, s in enumerate(e.key_stats[:4])
     )
     n = min(len(e.key_stats), 4)

@@ -155,6 +155,18 @@ PHOTOS = (
           "a framed poster of a handshake in light: partnership, trust, deals, M&A", 0.3),
 )
 PHOTO_IDS = tuple(p.id for p in PHOTOS)
+
+# Line icons from 07-diagrams/icons (traced from the KPMG Denmark annual report), stroke in currentColor.
+ICONS = {
+    "people-group": "people, staff, headcount, teams",
+    "coins-percent": "money, revenue, cost, rates, finance",
+    "high-five": "success, engagement, satisfaction, culture",
+    "handshake": "clients, partners, deals, trust",
+    "global-person": "global reach, countries, nationalities, markets",
+    "professional-woman": "a person, roles, diversity, careers",
+}
+ICON_IDS = tuple(ICONS)
+ICON_HELP = "; ".join(f"{k} = {v}" for k, v in ICONS.items()) + "."
 DEFAULT_HERO = "blue-arcs"
 
 
@@ -167,6 +179,11 @@ def catalogue() -> str:
 def photo_uri(photo_id: str) -> str:
     data = (ASSETS / "brand" / f"{photo_id}.jpg").read_bytes()
     return "data:image/jpeg;base64," + base64.b64encode(data).decode()
+
+
+@functools.lru_cache(maxsize=None)
+def icon_svg(icon_id: str) -> str:
+    return (ASSETS / "icons" / f"{icon_id}.svg").read_text(encoding="utf-8")
 
 
 @functools.lru_cache(maxsize=None)

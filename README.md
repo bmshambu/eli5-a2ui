@@ -33,6 +33,20 @@ The main use is KPMG staff uploading a document in GE chat and asking for it to 
 - An upload with no text, or with "explain this", gets the Expert briefing. "Explain this document like I'm 5" (the ELI5 button) and later questions in the same session reuse the latest uploaded document, which is found in the session history.
 - Each turn logs the kinds of parts it received (`turn parts: [...]`), so the first GE test shows exactly how GE delivers uploads.
 
+## Diagrams
+
+`visuals.py` draws eleven layouts. Eight follow the KPMG templates in `brand/extract/07-diagrams/templates`:
+- process chevrons (`flow`)
+- `funnel`, which shows stage-to-stage conversion when the values are numbers
+- `roadmap` (phase chevrons with dates)
+- `timeline` (milestones alternating above and below the line)
+- `staircase` (a maturity model)
+- `pyramid`
+- `matrix` (2x2 prioritisation)
+- `pillars` (gradient message cards with a stat each)
+
+The other three are `cycle`, `parts` and `compare`. All of them are built live in HTML and CSS from the model's nodes, so any text fits, and they stack vertically below 600px. Key-stat tiles can carry one of the six brand line icons (`07-diagrams/icons`). The icons are cleaned into `agent/assets/icons` with `stroke="currentColor"`, so they follow the tile colour and dark mode.
+
 ## Charts
 
 A section can carry a `chart` (bar, line or donut) when it turns on 3 or more comparable numbers. The prompt allows only numbers stated in the document or the sources, exactly as given, with a `source` note such as "Table 2, p. 7"; if the numbers are not there, there is no chart. Bars and labels are HTML so text stays at 14px or more at any panel width; series that don't match the labels are dropped rather than drawn wrong.
@@ -56,7 +70,7 @@ agent/
   probe*.py        step 0 probe agent and pages
   schemas/v0_9/    pinned catalog + A2UI v0.9 schemas
 brand/extract/     full copy of the KPMG 2026 brand library (colours, type, logos, photos, layouts); reference only, not deployed
-tools/build_brand_assets.py  rebuilds agent/assets/brand from brand/extract (needs Pillow)
+tools/build_brand_assets.py  rebuilds agent/assets/brand (photos) and agent/assets/icons from brand/extract (needs Pillow)
 tests/             offline tests (pytest), with a fake model client
 deploy_to_agent_engine.py
 ```

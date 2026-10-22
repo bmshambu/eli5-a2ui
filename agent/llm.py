@@ -26,7 +26,12 @@ _STYLE = """Write for {audience}
 Length: {length}
 Plain text only: no markdown, HTML, emoji or citation markers.
 Prefer visuals to long text. Give a section a diagram where a picture teaches better than words
-(at least one section should have one), and pick the diagram type that fits the idea.
+(at least one section should have one), and pick the diagram type that fits the idea: funnel for
+a pipeline or conversion, roadmap for a phased plan with dates, timeline for dated milestones,
+staircase for a maturity model, pyramid for a hierarchy, matrix for a 2x2 prioritisation,
+pillars for 3 or 4 key messages with a stat each, flow for a process, cycle for a loop, parts for
+the pieces of a whole, compare for two options. Vary the types across sections. Give a key stat
+a brand icon only where one plainly fits.
 Give a section a chart when it turns on 3 or more comparable numbers (a trend, a breakdown, a
 comparison). Charts may only use numbers stated in the document or your sources, exactly as
 given: never estimate, interpolate or invent a value, and leave the chart out if the numbers
