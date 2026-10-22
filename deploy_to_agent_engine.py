@@ -13,13 +13,17 @@ load_dotenv(dotenv_path=f".env.{environmentsuffix}")
 PROJECT_ID                  = os.getenv("GCP_CLOUD_PROJECT", "")
 GOOGLE_CLOUD_STAGING_BUCKET = os.getenv("GOOGLE_CLOUD_STAGING_BUCKET", "")
 GOOGLE_CLOUD_LOCATION       = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
-AGENT_NAME                  = os.getenv("AGENT_NAME", "eli5-iframe-probe-dev")
-AGENT_DISPLAY_NAME          = os.getenv("AGENT_DISPLAY_NAME", "ELI5 Iframe Probe (Dev)")
-AGENT_DESCRIPTION           = os.getenv("AGENT_DESCRIPTION", "Probe: what IFrameSrcdoc allows in GE chat (JS, Canvas, postMessage, size). Synthetic data only.")
+AGENT_NAME                  = os.getenv("AGENT_NAME", "eli5-dev")
+AGENT_DISPLAY_NAME          = os.getenv("AGENT_DISPLAY_NAME", "ELI5 (Dev)")
+AGENT_DESCRIPTION           = os.getenv("AGENT_DESCRIPTION", "Explains any topic like you are 5, then 10, 15 and expert, with a diagram and sources.")
 
 # ── Agent env vars ───────────────────────────────────────────────────────────
-# Start with any vars that should always be set on the deployed agent
-agent_env_vars: dict = {}
+# The model settings always go to the deployed agent (Agent Engine sets GOOGLE_CLOUD_PROJECT itself).
+# AGENT_MODE is read when root_agent is imported below, so it takes effect at deploy time.
+agent_env_vars: dict = {
+    "MODEL": os.getenv("MODEL", "gemini-4-argon"),
+    "MODEL_LOCATION": os.getenv("MODEL_LOCATION", "global"),
+}
 
 # Inject local env vars that start with AGENT_VAR_ (optional convention)
 for key, value in os.environ.items():

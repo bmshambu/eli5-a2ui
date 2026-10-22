@@ -1,24 +1,38 @@
 # eli5-a2ui
 
-An "Explain Like I'm 5" agent for Gemini Enterprise (inspired by [eli5.cc](https://eli5.cc/)), built with Python ADK on Vertex AI Agent Engine and A2UI v0.9. Each answer is a self-contained HTML explainer (four depths, a diagram, sources) shown in an `IFrameSrcdoc` inside a `Canvas` side panel.
+An "Explain Like I'm 5" agent for Gemini Enterprise (inspired by [eli5.cc](https://eli5.cc/)), built with Python ADK on Vertex AI Agent Engine and A2UI v0.9. Each answer is a self-contained HTML explainer (four depths, a diagram, sources, follow-up questions) shown in an `IFrameSrcdoc` inside a `Canvas` side panel.
 
 Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718dbtsRv8oHJahiHeQp)
 
 ## Status
 
-**Step 0: iframe probe.** The composite catalog, `Canvas` and `IFrameSrcdoc` with inline CSS are already proven in GE (see the v0.9 concierge guidelines, section 8). This probe checks what is left before we build on it: JavaScript inside the frame, `postMessage` clicks back to the agent, and a realistic page size. Steps and results log: [PROBE.md](PROBE.md).
+- **Step 0 probe: done.** JavaScript and `postMessage` clicks work inside `IFrameSrcdoc` in GE, in chat and in a `Canvas`. Results: [PROBE.md](PROBE.md).
+- **Pipeline and explainer page: built, not yet tried in GE.** Next: deploy and test in GE chat.
+
+## How a turn works
+
+1. The question is the typed text, or the `prompt` of an `ask` click (a follow-up chip inside the page, or a native example button). Greetings get a welcome card.
+2. `llm.research`: the model answers with Google Search grounding; the grounding chunks become the numbered sources.
+3. `llm.write`: the model turns the notes into an `Explanation` (`schema.py`) via structured output.
+4. `render.explanation_card`: a `Canvas` (opener card in chat, side panel) holding the explainer page in an `IFrameSrcdoc`, plus the source links natively below it. Every reply goes through `validate.check()`.
+
+If a model call fails the user gets a card with a retry button, not a broken turn.
 
 ## Layout
 
 ```
 agent/
-  agent.py         probe agent: answers in a before_model_callback, no model call
-  probe.py         one builder per trigger word, plus the "Received" echo card
-  probe_pages.py   the HTML pages shown in the iframe (inline CSS/JS/SVG only)
+  agent.py         root_agent: routes the turn, runs research -> write -> render (AGENT_MODE=probe serves the probe)
+  llm.py           the two Gemini calls (Google Search grounding, then structured output)
+  schema.py        Explanation: four levels, diagram, follow-ups
+  explainer.py     the HTML page: level tabs, SVG diagram, sources, follow-up chips
+  svg.py           diagram layouts: flow, parts, compare
+  render.py        A2UI cards: explainer, welcome, error
   a2ui.py          v0.9 message helpers + the <a2a_datapart_json> DataPart wrapper
   validate.py      offline check against the pinned GE composite catalog
+  probe*.py        step 0 probe agent and pages
   schemas/v0_9/    pinned catalog + A2UI v0.9 schemas
-tests/             offline tests (pytest)
+tests/             offline tests (pytest), with a fake model client
 deploy_to_agent_engine.py
 ```
 
@@ -32,7 +46,7 @@ python -m venv .venv; .venv\Scripts\pip install -r requirements.txt
 ## Deploy
 
 ```powershell
-copy env.dev.example .env.dev    # fill in project + staging bucket
+copy env.dev.example .env.dev    # fill in project, staging bucket, MODEL
 gcloud auth application-default login
 .venv\Scripts\python deploy_to_agent_engine.py
 ```

@@ -1,0 +1,20 @@
+{
+  "title": "Why is the sky blue?",
+  "one_liner": "Air scatters blue sunlight much more than red, so blue reaches your eyes from every part of the sky.",
+  "tags": ["Physics", "Light"],
+  "confidence": "high",
+  "eli5": {"analogy": "Sunlight is like a bag of coloured marbles, and the sky bounces the blue ones around the most.",
+           "body": "Sunlight looks white but is really all the colours mixed. Tiny bits of air bump the blue light all over the sky [1]. So when you look up, blue comes at you from everywhere."},
+  "eli10": {"analogy": "Like small waves bouncing off pebbles while big waves roll past.",
+            "body": "Each colour of light has a different wavelength. Blue has short waves, red has long ones. Air molecules scatter short waves far more, so the sky fills with scattered blue [1][2]."},
+  "eli15": {"analogy": "A sieve that catches small grains and lets big ones through, but for light.",
+            "body": "This is Rayleigh scattering: molecules much smaller than the wavelength scatter light with strength proportional to 1/wavelength^4 [2]. Blue near 450 nm scatters about 4 times more than red near 700 nm. Violet scatters even more, but sunlight has less of it and our eyes are less sensitive to it [3]."},
+  "expert": {"analogy": "The sky is a diffuse, wavelength-weighted re-radiator of the solar beam.",
+             "body": "The Rayleigh cross-section scales as lambda^-4 for size parameter x much less than 1 [2]. Integrated over the solar spectrum, the atmosphere's optical depth and the CIE photopic response, diffuse skylight peaks perceptually in the blue, while the direct beam reddens at low solar elevation [3][9]."},
+  "diagram": {"type": "flow", "caption": "White sunlight enters the air, blue is scattered across the sky, and reaches your eye from all directions.",
+              "nodes": [{"label": "White sunlight", "note": "All colours mixed together"},
+                        {"label": "Hits air molecules", "note": "Nitrogen and oxygen, far smaller than light waves"},
+                        {"label": "Blue scatters most", "note": "Short waves bounce about 4x more than red"},
+                        {"label": "Blue from everywhere", "note": "Your eye sees blue across the whole sky"}]},
+  "follow_ups": ["Why are sunsets red and orange?", "Why isn't the sky violet?", "What colour is the sky on Mars?"]
+}

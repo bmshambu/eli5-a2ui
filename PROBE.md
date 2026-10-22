@@ -27,18 +27,38 @@ For row 3, copy each **Received** card's raw payload into the log below. If A an
 
 ## Results log
 
+Run 2026-10-22 in GE chat by Sharya. **All pass: planned design confirmed** (tabs and follow-up chips inside the explainer page).
+
 | probe | result | exact observation / error |
 |---|---|---|
-| `help` renders | | |
-| Q1 `iframe-js`: JS pill green? | | |
-| Q1 `iframe-js`: tabs switch? | | |
-| Q2 `iframe-canvas` | | |
-| Q3 button A (`parent.postMessage`) | | |
-| Q3 button B (`window.top.postMessage`) | | |
-| Q3 button C (native `MaterialButton`) | | |
-| Q3 raw payload shape | | |
-| Q4 `iframe-200kb` | | |
-| Console errors, if any | | |
+| `help` renders | pass | card lists all five triggers; MaterialText markdown rendered as a bullet list with bold names |
+| Q1 `iframe-js`: JS pill green? | pass | green "JavaScript: running" pill |
+| Q1 `iframe-js`: tabs switch? | pass | Expert tab showed the Rayleigh text; inline SVG drew |
+| Q2 `iframe-canvas` | pass | compact opener card in chat, side panel auto-opened, pill green, tabs live |
+| Q3 button A (`parent.postMessage`) | pass | Received card, `via: "parent"` |
+| Q3 button B (`window.top.postMessage`) | pass | Received card, `via: "top"` |
+| Q3 button C (native `MaterialButton`) | pass | Received card, `name: probe_native_click`, `sourceComponentId: "native"` |
+| Q3 raw payload shape | captured | see below |
+| Q4 `iframe-200kb` | pass | rendered like `iframe-js`, no truncation |
+| Console errors, if any | not captured | nothing about `sandbox` or `postMessage` reported |
+
+The frame posts `{type: 'a2ui_action', action: 'probe_iframe_click', data: {via, prompt}}`. The agent receives:
+
+```json
+{"data": {"version": "v0.9",
+          "action": {"name": "probe_iframe_click",
+                     "context": {"prompt": "Clicked button parent in the iframe", "via": "parent"},
+                     "sourceComponentId": "frame", "surfaceId": "probe-action-a97d2beca9f2",
+                     "timestamp": "2026-10-22T10:08:20.331Z"}},
+ "metadata": {"mimeType": "application/json+a2ui"}}
+```
+
+What this means for the build:
+
+- The frame's `action` becomes `action.name` and its `data` becomes `action.context` verbatim.
+- In-frame and native clicks arrive in the same envelope (only `sourceComponentId` differs), so one handler keyed on `action.name` serves both.
+- GE shows `context.prompt` as a visible user turn, so a follow-up chip sends the question itself as its prompt.
+- `parent` and `window.top` both work; the explainer uses `window.parent`.
 
 ## What the results mean
 
