@@ -18,8 +18,8 @@ VERSION = "v0.9"
 CATALOG_ID = "https://www.gstatic.com/vertexaisearch/a2ui/v0_9/gemini_enterprise_composite_catalog.json"
 MAX_MESSAGE_BYTES = 800_000  # margin under the ~900 KB that passed in GE
 
-_TAG_START = b"<a2a_datapart_json>"
-_TAG_END = b"</a2a_datapart_json>"
+TAG_START = b"<a2a_datapart_json>"
+TAG_END = b"</a2a_datapart_json>"
 
 
 def new_surface_id(prefix: str) -> str:
@@ -52,7 +52,7 @@ def to_genai_part(a2ui_message: dict) -> genai_types.Part:
     return genai_types.Part(
         inline_data=genai_types.Blob(
             mime_type="text/plain",
-            data=_TAG_START + data_part_json.encode("utf-8") + _TAG_END,
+            data=TAG_START + data_part_json.encode("utf-8") + TAG_END,
         )
     )
 
@@ -64,9 +64,9 @@ def incoming_data(content) -> list:
         return found
     for p in content.parts:
         blob = getattr(p, "inline_data", None)
-        if blob and blob.data and blob.data.startswith(_TAG_START):
+        if blob and blob.data and blob.data.startswith(TAG_START):
             try:
-                found.append(json.loads(blob.data[len(_TAG_START):-len(_TAG_END)]))
+                found.append(json.loads(blob.data[len(TAG_START):-len(TAG_END)]))
             except (ValueError, UnicodeDecodeError):
                 found.append({"unparsed": blob.data[:2000].decode("utf-8", "replace")})
         elif getattr(p, "text", None) and p.text.lstrip().startswith("{"):

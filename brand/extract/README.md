@@ -19,6 +19,10 @@ Open **index.html** in a browser for the visual catalogue. **asset-index.csv** l
   - 01-executive-portraits (18), 02-people-at-work (16), 03-architecture-and-places (11), 04-technology-and-abstract (17), 05-blue-duotone-banners (18), 06-objects-and-textures (4)
 - **05-layouts/**: every page of every PDF as a thumbnail, plus layout-patterns.md describing the 8 recurring layouts
 - **06-graphics/publication-thumbnails/**: newsletter covers shown in the thought-leadership decks
+- **07-diagrams/**: funnels, roadmaps, timelines and process flows (see 07-diagrams/README.md)
+  - templates (14): editable KPMG-styled SVG + PNG preview: 3 funnels, 3 roadmaps, milestone timeline, chevron process, cycle, maturity staircase, pyramid, gradient pillar cards, 2x2 matrix, KPI row with icons
+  - icons (6): line icons traced as vectors from the annual report, in blue / cobalt / white
+  - from-pdfs (23): high-res crops of the agenda roadmap, gradient cards, maturity charts, stat callouts, chart styles and Impact Plan infographic panels
 
 ## Notes
 - 2026 KPMG material uses the refreshed palette (Cobalt `#1E49E2`, Pacific Blue `#00B8F5`, Purple `#7213EA`) alongside KPMG Blue `#00338D`. The older Medium Blue / Violet / Green palette in the branding skill did not appear in these PDFs.

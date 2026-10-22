@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .brand import PHOTO_IDS
+from .brand import ICON_HELP, ICON_IDS, PHOTO_IDS
 
 # key -> (short label, how the user asks for it, who it is written for, how much to write)
 LEVELS = {
@@ -31,22 +31,52 @@ class DiagramNode(BaseModel):
     note: str = Field(description="One short line, under 70 characters.")
     side: Optional[Literal["left", "right"]] = Field(
         default=None, description="Only for type 'compare': which column this node belongs to.")
+    value: Optional[str] = Field(
+        default=None, description="funnel: the count at this stage; timeline: the year or date; roadmap: the dates; "
+                                  "pillars: a headline stat. Only values stated in the source.")
 
 
 class Diagram(BaseModel):
-    type: Literal["flow", "cycle", "parts", "compare"] = Field(
-        description="flow = steps in order; cycle = steps that loop back to the start; "
-                    "parts = pieces of one whole; compare = two things side by side.")
+    type: Literal["flow", "cycle", "parts", "compare", "funnel", "roadmap", "timeline", "staircase",
+                  "pyramid", "matrix", "pillars"] = Field(
+        description="flow = steps of a process in order; cycle = steps that loop back to the start; "
+                    "parts = pieces of one whole; compare = two things side by side; "
+                    "funnel = stages that narrow (pipeline, conversion), widest first; "
+                    "roadmap = phases of a plan with dates; timeline = dated milestones; "
+                    "staircase = maturity levels from lowest to highest; "
+                    "pyramid = a hierarchy, top (most specific) first, foundation last; "
+                    "matrix = exactly 4 quadrants: top-left, top-right, bottom-left, bottom-right; "
+                    "pillars = 3 or 4 key messages side by side, each with a headline stat.")
     caption: str = Field(description="One sentence saying what the picture shows.")
     center: Optional[str] = Field(default=None, description="parts and cycle only: the whole thing, 1 to 3 words.")
     nodes: list[DiagramNode] = Field(description="3 to 6 nodes (compare: 2 to 4 per side).")
     left_title: Optional[str] = Field(default=None, description="compare only: left column title.")
     right_title: Optional[str] = Field(default=None, description="compare only: right column title.")
+    x_axis: Optional[str] = Field(default=None, description="matrix only: what the horizontal axis measures, low to high.")
+    y_axis: Optional[str] = Field(default=None, description="matrix only: what the vertical axis measures, low to high.")
+
+
+class Series(BaseModel):
+    name: str = Field(description="What this series measures, e.g. 'Revenue' or '2025'.")
+    values: list[float] = Field(description="One value per label, in the same order.")
+
+
+class Chart(BaseModel):
+    type: Literal["bar", "line", "donut"] = Field(
+        description="bar = compare amounts across categories; line = change over time; donut = shares of one total.")
+    title: str = Field(description="What the chart shows, under 60 characters.")
+    unit: Optional[str] = Field(default=None, description="Unit for every value, e.g. '%', '£m', 'bn', 'people'.")
+    labels: list[str] = Field(description="Category names or time points, 2 to 8, short.")
+    series: list[Series] = Field(description="1 to 3 series (donut: exactly 1).")
+    caption: str = Field(description="One sentence: the takeaway of the chart.")
+    source: Optional[str] = Field(default=None, description="Where the numbers come from, e.g. 'Table 2, p. 7'.")
 
 
 class Stat(BaseModel):
     value: str = Field(description="A short striking number, e.g. '4x', '1.5 C' or '150 million km'.")
     label: str = Field(description="What the value means, under 60 characters.")
+    icon: Optional[Literal[ICON_IDS]] = Field(
+        default=None, description="A brand line icon that fits the stat, if one does: " + ICON_HELP)
 
 
 class Section(BaseModel):
@@ -55,7 +85,11 @@ class Section(BaseModel):
     points: list[str] = Field(description="0 to 4 crisp key points for this section.")
     diagram: Optional[Diagram] = Field(
         default=None, description="A diagram where a picture explains this section better than words.")
+    chart: Optional[Chart] = Field(
+        default=None, description="A chart when this section turns on 3 or more comparable numbers stated in the source.")
     photo: Optional[PhotoId] = Field(default=None, description="A brand photo id that fits this section, or none.")
+    doc_ref: Optional[str] = Field(
+        default=None, description="When explaining a document: where this comes from in it, e.g. 'Section 3' or 'Slides 4-6'.")
 
 
 class Term(BaseModel):
