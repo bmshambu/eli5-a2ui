@@ -92,7 +92,7 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--hi);outline-offset:
 # crosses it, and the cover text reveals line by line. Further down, KPI numbers count up and
 # sections, diagrams and charts animate as they scroll into view. Everything is CSS transforms
 # and opacity (cheap, no video, nothing to download). Without JS the page shows fully; with
-# "reduce motion" it is still.
+# "reduce motion" it keeps only gentle fades (no zoom, drift or sliding).
 _MOTION = """
 .cover{min-height:300px}
 .cover .photo{animation:kb 26s ease-in-out infinite alternate;transform-origin:70% 40%}
@@ -115,8 +115,10 @@ transform:translateX(-100%);animation:sweep 2.4s .5s ease-in-out both}
 .donut circle{animation:ring 1.1s ease-out both}@keyframes ring{from{stroke-dasharray:0 400}}
 .line svg{animation:wipe 1.3s ease-out both}@keyframes wipe{from{clip-path:inset(0 100% 0 0)}}
 .kpi{transition:transform .2s}.kpi:hover{transform:translateY(-3px)}
-@media (prefers-reduced-motion:reduce){.cover .photo,.cover .frames i,.cover .sweep,.rv0,.donut circle,.line svg{animation:none!important}
-.cover .sweep{display:none}.js .rv{opacity:1;transform:none;transition:none}}
+.js .cover:not(.go) .rv0,.js .cover:not(.go) .sweep{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.cover .photo,.cover .frames i,.donut circle,.line svg{animation:none!important}
+.cover .sweep{display:none}.rv0{animation-name:fadein}.js .rv{transform:none;transition:opacity .8s ease-out}}
+@keyframes fadein{from{opacity:0}}
 """
 
 # The four KPMG theme recipes (brand/extract/08-themes). Corporate is the base style above; the
@@ -160,9 +162,8 @@ font-size:32px;font-weight:700;line-height:1.1;color:#fff}
 """
 
 _SCRIPT = """
-(function(){var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-document.documentElement.classList.add('js');
-function count(el){var m=/^([^0-9]*)([0-9][0-9,]*(?:\\.[0-9]+)?)(.*)$/.exec(el.textContent);if(!m||still)return;
+(function(){document.documentElement.classList.add('js');
+function count(el){var m=/^([^0-9]*)([0-9][0-9,]*(?:\\.[0-9]+)?)(.*)$/.exec(el.textContent);if(!m||el.dataset.counted)return;el.dataset.counted=1;
 var end=parseFloat(m[2].replace(/,/g,'')),dp=(m[2].split('.')[1]||'').length,comma=m[2].indexOf(',')>=0,t0=null;
 if(!dp&&!comma&&end>=1900&&end<=2100)return;
 function f(v){var s=v.toFixed(dp);return comma?s.replace(/\\B(?=(\\d{3})+(?!\\d))/g,','):s;}
@@ -172,10 +173,16 @@ var items=document.querySelectorAll('section,figure,.kpis,.panel,table.gloss,.an
 items.forEach(function(x){x.classList.add('rv');});
 function show(x){x.classList.add('in');x.querySelectorAll('figure').forEach(function(f){f.classList.add('in');});
 if(x.classList.contains('kpis'))x.querySelectorAll('.v').forEach(count);}
-setTimeout(function(){document.querySelectorAll('.cstats .v').forEach(count);},600);
-if(!('IntersectionObserver' in window)){items.forEach(show);}else{
-var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){show(e.target);io.unobserve(e.target);}});},{threshold:.15});
-items.forEach(function(x){io.observe(x);});}})();
+// The cover intro starts when the cover is actually on screen (the panel may open after the
+// page loads), with a fallback so it never stays paused.
+var cover=document.querySelector('.cover');
+function go(){if(!cover||cover.classList.contains('go'))return;cover.classList.add('go');
+setTimeout(function(){document.querySelectorAll('.cstats .v').forEach(count);},700);}
+setTimeout(go,2500);
+if(!('IntersectionObserver' in window)){go();items.forEach(show);}else{
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;
+if(e.target===cover)go();else show(e.target);io.unobserve(e.target);});},{threshold:.15});
+if(cover)io.observe(cover);items.forEach(function(x){io.observe(x);});}})();
 document.querySelectorAll('[data-q]').forEach(function(b){b.addEventListener('click',function(){
 window.parent.postMessage({type:'a2ui_action',action:ACTION,data:JSON.parse(b.dataset.ctx)},'*');
 document.querySelectorAll('[data-q]').forEach(function(x){x.disabled=true;});b.textContent='Asked: '+b.dataset.q;});});

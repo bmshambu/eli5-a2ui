@@ -336,7 +336,7 @@ def test_page_has_motion_poster_that_respects_reduced_motion():
     page = explainer.page(SKY, [], Q)
     assert "@keyframes kb" in page and 'class="frames"' in page and 'class="sweep"' in page
     assert "IntersectionObserver" in page and "requestAnimationFrame" in page  # scroll reveal, KPI count-up
-    assert "prefers-reduced-motion:reduce" in page and "prefers-reduced-motion: reduce" in page  # CSS and JS
+    assert "prefers-reduced-motion:reduce" in page and "cover.classList.add('go')" in page
 
 
 def test_card_has_native_download_pdf_button():
