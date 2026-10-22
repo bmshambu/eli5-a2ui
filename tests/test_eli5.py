@@ -95,15 +95,15 @@ def test_expert_page_is_branded_and_offers_eli5():
     assert 'class="logo"' in page and "Explained · Expert" in page and "KPMG. Make the Difference." in page
     assert page.count('<section id="s') == 4 and page.count('class="kpi"') == 4
     assert "Glossary" in page and "Caveats" in page and "Contents" in page
-    assert page.count("data-q=") == 1 + 3  # ELI5, follow-ups
+    assert page.count("data-q=") == 1 + 3 + 3  # simpler, follow-ups, the 3 other themes
     assert "ELI10" not in page and "Go deeper" not in page and "a2ui_action" in page
-    ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
+    ctx = json.loads(explainer.html.unescape(page.split('class="primary"')[1].split('data-ctx="')[1].split('"')[0]))
     assert ctx == {"prompt": "Explain it in a simpler way: " + Q, "level": "eli5", "question": Q}
     assert "ELI5" not in page and "like I'm 5" not in page
 
 
 def test_eli5_page_offers_expert():
-    ctx = json.loads(explainer.html.unescape(explainer.page(SKY, [], Q, "eli5").split('data-ctx="')[1].split('"')[0]))
+    ctx = json.loads(explainer.html.unescape(explainer.page(SKY, [], Q, "eli5").split('class="primary"')[1].split('data-ctx="')[1].split('"')[0]))
     assert ctx["level"] == "expert"
 
 
@@ -304,7 +304,7 @@ def test_bare_upload_explains_the_document_without_search(fake):
     assert parts[0].inline_data.mime_type == "application/pdf" and "faithfully and completely" in parts[-1].text
     page = _components(messages)["frame"]["htmlContent"]
     assert "Document explained · Expert" in page and "Based on your document" in page and "policy.pdf" in page
-    ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
+    ctx = json.loads(explainer.html.unescape(page.split('class="primary"')[1].split('data-ctx="')[1].split('"')[0]))
     assert ctx["prompt"] == "Explain this document in a simpler way" and ctx["level"] == "eli5"
 
 
@@ -343,7 +343,7 @@ def test_page_has_motion_poster_that_respects_reduced_motion():
 def test_card_has_native_download_pdf_button():
     comps = _components(render.explanation_card(SKY, SOURCES, Q, "eli5"))
     assert comps["pdf"]["label"] == "Download PDF" and "pdf" in comps["root"]["children"]
-    assert comps["pdf"]["action"]["event"] == {"name": "pdf", "context": {"question": Q, "level": "eli5"}}
+    assert comps["pdf"]["action"]["event"] == {"name": "pdf", "context": {"question": Q, "level": "eli5", "theme": "corporate"}}
     assert comps["root"]["cardTitle"].endswith("· Simpler")
 
 
@@ -451,3 +451,50 @@ def test_theme_defaults_to_corporate_and_is_offered_to_the_model(fake):
     asyncio.run(llm.explain(eli5._client, Q))
     assert "finance-data" in json.dumps(Explanation.model_json_schema())
     assert "Choose the theme" in fake.calls[0][0]
+
+
+def test_page_offers_the_other_themes():
+    page = explainer.page(SKY.model_copy(update={"theme": "ai"}), [], Q)
+    bar = page.split('class="themes"')[1].split("</div>")[0]
+    assert 'aria-current="true">AI<' in bar and bar.count('data-action="theme"') == 3
+    ctx = json.loads(explainer.html.unescape(bar.split('data-ctx="')[1].split('"')[0]))
+    assert ctx == {"prompt": "Show this in the KPMG Corporate theme", "theme": "corporate", "question": Q, "level": "expert"}
+
+
+def _theme_click(theme, question=Q, level="expert"):
+    return _click_content({"name": "theme", "context": {"prompt": "x", "theme": theme, "question": question, "level": level}})
+
+
+def test_theme_switch_reuses_the_explanation_without_a_model_call(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        out = []
+        for msg in (_text_content(Q), _theme_click("finance-data"), _pdf_click(), _text_content("switch to the AI theme")):
+            out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
+        return out
+
+    _, switched, pdf_reply, typed = asyncio.run(run())
+    assert len(fake.calls) == 1  # only the first answer called the model
+    assert switched[0].content.parts[0].text == "**Why is the sky blue?** in the KPMG Finance Data theme."
+    page = _components([json.loads(p.inline_data.data[len(a2ui.TAG_START):-len(a2ui.TAG_END)])["data"]
+                        for p in switched[0].content.parts[1:]])["frame"]["htmlContent"]
+    assert '<body class="t-finance-data">' in page and brand.photo_uri("finance-dollar") in page
+    assert pdf_reply[0].content.parts[1].inline_data.mime_type == "application/pdf"
+    assert typed[0].content.parts[0].text.endswith("in the KPMG AI theme.")
+
+
+def test_with_theme_keeps_a_fitting_cover_photo():
+    x = SKY.model_copy(update={"hero_photo": "glass-towers"})
+    assert eli5.with_theme(x, "finance-data").hero_photo == "glass-towers"
+    assert eli5.with_theme(x, "ai").hero_photo == brand.THEMES["ai"].heroes[0]
+
+
+@pytest.mark.parametrize("text,theme", [
+    ("switch to the AI theme", "ai"), ("use the KPMG finance data theme", "finance-data"),
+    ("please show it in the AI platform look", "ai-platform"), ("change to corporate style", "corporate"),
+    ("What is the corporate style guide?", None), ("How does the AI theme of the report land?", None),
+])
+def test_typed_theme_switch(text, theme):
+    m = eli5._THEME_TEXT.match(text)
+    assert (eli5._theme_id(m.group(1)) if m else None) == theme

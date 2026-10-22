@@ -19,6 +19,7 @@ from . import brand, charts, visuals
 from .schema import LEVELS, Explanation
 
 ASK_ACTION = "ask"
+THEME_ACTION = "theme"  # re-show the same explanation in another KPMG theme (no new model call)
 DOC_QUESTION = "Explain this document"  # the question when a document is uploaded without one
 MAX_SECTION_PHOTOS = 2  # plus the cover photo; keeps the page well under GE's per-message limit
 
@@ -120,6 +121,11 @@ transform:translateX(-100%);animation:sweep 2.4s .5s ease-in-out both}
 html:not(.motion-on) .donut circle,html:not(.motion-on) .line svg{animation:none!important}
 html:not(.motion-on) .cover .sweep{display:none}html:not(.motion-on) .rv0{animation-name:fadein}
 html:not(.motion-on) .js .rv,html.js:not(.motion-on) .rv{transform:none;transition:opacity .8s ease-out}}
+.themes{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:14px 0 0;font-size:14px}
+.themes .tlab{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.themes .tbtn,.themes .tcur{font:inherit;font-size:14px;padding:4px 12px;border:1px solid var(--accent);background:transparent;color:var(--ink);cursor:pointer}
+.themes .tbtn:hover{background:var(--tint10)}.themes .tcur{background:var(--accent);color:#fff;font-weight:700;cursor:default}
+.t-ai .themes .tbtn,.t-ai .themes .tcur{border-radius:999px}.t-ai .themes .tcur{color:#00338D}
 .motion{position:absolute;z-index:3;top:16px;right:18px;font:inherit;font-size:14px;font-weight:700;color:#fff;cursor:pointer;
 background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.6);padding:6px 12px}.motion:hover{background:rgba(255,255,255,.25)}
 @keyframes fadein{from{opacity:0}}
@@ -196,7 +202,7 @@ var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isInte
 if(e.target===cover)go();else show(e.target);io.unobserve(e.target);});},{threshold:.15});
 if(cover)io.observe(cover);items.forEach(function(x){io.observe(x);});}})();
 document.querySelectorAll('[data-q]').forEach(function(b){b.addEventListener('click',function(){
-window.parent.postMessage({type:'a2ui_action',action:ACTION,data:JSON.parse(b.dataset.ctx)},'*');
+window.parent.postMessage({type:'a2ui_action',action:b.dataset.action||ACTION,data:JSON.parse(b.dataset.ctx)},'*');
 document.querySelectorAll('[data-q]').forEach(function(x){x.disabled=true;});b.textContent='Asked: '+b.dataset.q;});});
 """
 
@@ -214,10 +220,25 @@ def level_prompt(level: str, question: str) -> str:
     return f"{LEVELS[level][1]}: {question}"
 
 
-def _ask(cls: str, label: str, prompt: str, **context) -> str:
-    """A button that sends `prompt` (plus optional context) back to the agent as an ask action."""
+def _ask(cls: str, label: str, prompt: str, action: str = "", **context) -> str:
+    """A button that sends `prompt` (plus optional context) back to the agent as an ask action,
+    or as `action` when given."""
     ctx = json.dumps({"prompt": prompt, **context})
-    return f'<button class="{cls}" data-q="{_esc(prompt)}" data-ctx="{_esc(ctx)}">{_esc(label)}</button>'
+    act = f' data-action="{_esc(action)}"' if action else ""
+    return f'<button class="{cls}" data-q="{_esc(prompt)}" data-ctx="{_esc(ctx)}"{act}>{_esc(label)}</button>'
+
+
+def theme_prompt(theme: str) -> str:
+    return f"Show this in the {brand.THEMES[theme].name} theme"
+
+
+def _theme_bar(e: Explanation, question: str, level: str) -> str:
+    """Buttons that re-show this explanation in each of the other KPMG themes."""
+    buttons = "".join(
+        f'<span class="tcur" aria-current="true">{_esc(t.name[5:])}</span>' if k == e.theme else
+        _ask("tbtn", t.name[5:], theme_prompt(k), THEME_ACTION, theme=k, question=question, level=level)
+        for k, t in brand.THEMES.items())
+    return f'<div class="themes"><span class="tlab">Theme</span>{buttons}</div>'
 
 
 def _logo() -> str:
@@ -319,7 +340,7 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
         f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}{THEME_CSS}</style></head>"
         f'<body class="t-{e.theme}">'
         f'{_cover(e, level, bool(documents))}'
-        f'<main class="wrap">{_kpis(e.model_copy(update={"key_stats": e.key_stats[3:]})) if e.theme == "finance-data" else _kpis(e)}'
+        f'<main class="wrap">{_theme_bar(e, question, level)}{_kpis(e.model_copy(update={"key_stats": e.key_stats[3:]})) if e.theme == "finance-data" else _kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'
         f'{_bullets(e.takeaways)}{contents}{sections}{caveats}{glossary}{sources_html}'
         f'<div class="label next-label">Keep going</div><div class="next">{switch}{chips}</div>'

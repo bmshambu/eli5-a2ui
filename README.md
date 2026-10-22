@@ -30,7 +30,7 @@ Each answer uses one of the four KPMG theme recipes in `brand/extract/08-themes`
 | `ai-platform` | platforms, architectures, roadmaps | navy data-city cover, white pages, chevrons ramping Tint 20 → Light Blue → Pacific → Cobalt |
 | `finance-data` | banking, results, outlooks, KPI packs | Cobalt cover carrying three headline figures, a Pacific/Purple/Light Blue tab strip, Cobalt titles, single-series bars in Pacific with the latest in KPMG Blue, ruled tables |
 
-`explainer.THEME_CSS` holds the page rules and `pdf.COVERS` holds the PDF covers. PDF inner pages stay white in every theme so they print well. The 20 photos from the 2026 AI Pulse deck and the Hong Kong Banking Outlook (`04-photos/07-ai-neon-backgrounds`, `08-finance-and-banking`) are in the catalogue too, which now has 75 photos. To add a theme, follow `08-themes/README.md`, then add an entry to `brand.THEMES`, `THEME_CSS` and `COVERS`.
+**Switching theme.** A row of theme buttons sits under the cover, and "switch to the AI theme" typed in chat works too. Either one re-shows the same explanation in the other theme from session state, with no new model call. The cover photo changes unless it already suits the theme, and Download PDF on that card uses the theme it shows. `explainer.THEME_CSS` holds the page rules and `pdf.COVERS` holds the PDF covers. PDF inner pages stay white in every theme so they print well. The 20 photos from the 2026 AI Pulse deck and the Hong Kong Banking Outlook (`04-photos/07-ai-neon-backgrounds`, `08-finance-and-banking`) are in the catalogue too, which now has 75 photos. To add a theme, follow `08-themes/README.md`, then add an entry to `brand.THEMES`, `THEME_CSS` and `COVERS`.
 
 ## Uploaded documents
 
