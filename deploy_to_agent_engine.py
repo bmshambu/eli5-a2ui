@@ -34,7 +34,7 @@ print(
 # ── Continue with Agent Deployment ───────────────────────────────────────────
 print(f"\nDeploying agent '{AGENT_DISPLAY_NAME}' to project '{PROJECT_ID}'...")
 
-from eli5_agent.agent import root_agent  # noqa: E402 — import after env is set up
+from agent.agent import root_agent  # noqa: E402 — import after env is set up
 
 vertexai.init(project=PROJECT_ID, location=GOOGLE_CLOUD_LOCATION,staging_bucket=GOOGLE_CLOUD_STAGING_BUCKET)
 
@@ -77,7 +77,7 @@ if agent:
         agent_engine=app,
         description=AGENT_DESCRIPTION,
         requirements=agent_requirements,
-        extra_packages=["./eli5_agent"],
+        extra_packages=["./agent"],
         env_vars=agent_env_vars,
     )
     print(f"=======> Success! Agent updated. Resource name is: {remote_app.resource_name}.")
@@ -88,7 +88,7 @@ else:
         requirements=agent_requirements,
         display_name=AGENT_DISPLAY_NAME,
         description=AGENT_DESCRIPTION,
-        extra_packages=["./eli5_agent"],
+        extra_packages=["./agent"],
         env_vars=agent_env_vars,
     )
     print(f"=======> Success! Agent deployed. Resource name is: {remote_app.resource_name}.")

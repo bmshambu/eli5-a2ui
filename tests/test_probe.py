@@ -5,8 +5,8 @@ import pytest
 from google.adk.runners import InMemoryRunner
 from google.genai import types as genai_types
 
-from eli5_agent import a2ui, probe, validate
-from eli5_agent.agent import respond, root_agent
+from agent import a2ui, probe, validate
+from agent.agent import respond, root_agent
 
 
 @pytest.mark.parametrize("trigger", list(probe.BUILDERS))
