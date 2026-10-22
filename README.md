@@ -7,26 +7,25 @@ Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718d
 ## Status
 
 - **Step 0 probe: done.** JavaScript and `postMessage` clicks work inside `IFrameSrcdoc` in GE, in chat and in a `Canvas`. Results: [PROBE.md](PROBE.md).
-- **Pipeline and explainer page: built, not yet tried in GE.** Next: deploy and test in GE chat.
+- **Pipeline and explainer page: working in GE** (first test 2026-10-22). Now one level per answer (ELI5 first) with richer pictures.
 
 ## How a turn works
 
-1. The question is the typed text, or the `prompt` of an `ask` click (a follow-up chip inside the page, or a native example button). Greetings get a welcome card.
-2. `llm.research`: the model answers with Google Search grounding; the grounding chunks become the numbered sources.
-3. `llm.write`: the model turns the notes into an `Explanation` (`schema.py`) via structured output.
-4. `render.explanation_card`: a `Canvas` (opener card in chat, side panel) holding the explainer page in an `IFrameSrcdoc`, plus the source links natively below it. Every reply goes through `validate.check()`.
+1. The question and level come from the typed text, or from an `ask` click (a level button, "Go deeper" or a follow-up chip inside the page, or a native example button). A new question starts at **ELI5**. "Explain it like I'm 10", "like I'm 15", "expert" or "go deeper" on their own apply to the last question, which is kept in session state. Greetings get a welcome card.
+2. `llm.explain`: one Gemini call with Google Search grounding and a `response_schema` returns the `Explanation` for that one level (`schema.py`), with low thinking for speed. If the model can't combine search and a schema (a 400), it switches for good to two calls: research, then write.
+3. `render.explanation_card`: a `Canvas` (opener card in chat, side panel) holding the explainer page in an `IFrameSrcdoc`, plus the source links natively below it. Every reply goes through `validate.check()`.
 
-If a model call fails the user gets a card with a retry button, not a broken turn.
+The page has a level ladder (ELI5, ELI10, ELI15, Expert), the analogy, a key fact, the picture (`visuals.py`: flow, cycle, parts or compare, with emoji and colour per node), sources, and buttons to go deeper or ask a follow-up. If a model call fails the user gets a card with a retry button, not a broken turn.
 
 ## Layout
 
 ```
 agent/
-  agent.py         root_agent: routes the turn, runs research -> write -> render (AGENT_MODE=probe serves the probe)
-  llm.py           the two Gemini calls (Google Search grounding, then structured output)
-  schema.py        Explanation: four levels, diagram, follow-ups
-  explainer.py     the HTML page: level tabs, SVG diagram, sources, follow-up chips
-  svg.py           diagram layouts: flow, parts, compare
+  agent.py         root_agent: finds question + level, explains, renders (AGENT_MODE=probe serves the probe)
+  llm.py           the Gemini call: Google Search grounding + structured output, one level at a time
+  schema.py        Explanation for one level: analogy, body, key fact, diagram, follow-ups
+  explainer.py     the HTML page: level ladder, picture, sources, go-deeper and follow-up buttons
+  visuals.py       the picture: flow, cycle, parts, compare (HTML/CSS, emoji, colours)
   render.py        A2UI cards: explainer, welcome, error
   a2ui.py          v0.9 message helpers + the <a2a_datapart_json> DataPart wrapper
   validate.py      offline check against the pinned GE composite catalog

@@ -23,6 +23,7 @@ AGENT_DESCRIPTION           = os.getenv("AGENT_DESCRIPTION", "Explains any topic
 agent_env_vars: dict = {
     "MODEL": os.getenv("MODEL", "gemini-4-argon"),
     "MODEL_LOCATION": os.getenv("MODEL_LOCATION", "global"),
+    "THINKING_LEVEL": os.getenv("THINKING_LEVEL", "low"),
 }
 
 # Inject local env vars that start with AGENT_VAR_ (optional convention)
