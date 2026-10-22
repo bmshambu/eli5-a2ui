@@ -1,8 +1,9 @@
-"""A2UI v0.9 cards for the ELI5 agent: the explainer (Canvas + IFrameSrcdoc), welcome and error."""
+"""A2UI v0.9 cards for the explainer agent: the explainer (Canvas + IFrameSrcdoc), welcome and error."""
 from . import a2ui, explainer
 from .schema import DEFAULT_LEVEL, LEVELS, Explanation
 
 FRAME_HEIGHT = 1100  # the page scrolls inside the frame when it is longer
+PDF_ACTION = "pdf"  # the agent builds the PDF (pdf.py) and sends it back as a file in chat
 
 EXAMPLES = (
     "Why is the sky blue?",
@@ -39,10 +40,13 @@ def _card(prefix: str, children: list[dict]) -> list[dict]:
 def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = DEFAULT_LEVEL,
                      documents: list[str] = ()) -> list[dict]:
     """Opener card in chat; the explainer page opens in the side panel. Source links are repeated
-    natively under the frame because links inside the sandboxed frame may not open."""
-    children = ["frame"]
+    natively under the frame because links inside the sandboxed frame may not open. "Download PDF"
+    is a native button too: the frame can't print or download, so the agent makes the file."""
+    children = ["frame", "pdf"]
     comps = [
         {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level, documents), "height": FRAME_HEIGHT},
+        {"id": "pdf", "component": "MaterialButton", "label": "Download PDF", "variant": "stroked", "leadingIcon": "download",
+         "action": {"event": {"name": PDF_ACTION, "context": {"question": question, "level": level}}}},
     ]
     if sources:
         links = " · ".join(f"[{i}. {_md_label(s['title'])}]({s['uri']})" for i, s in enumerate(sources, 1))
@@ -58,7 +62,7 @@ def welcome_card() -> list[dict]:
     return _card("eli5-welcome", [
         _text("title", "Explain anything", "h4"),
         _text("intro", "Ask me about anything, or upload a document and ask me to explain it. I'll write a detailed, illustrated briefing. "
-                       "Then ask for ELI5 if you want the simple version."),
+                       "Then ask me to explain it in a simpler way if you want the short, plain-English version."),
         *buttons,
     ])
 

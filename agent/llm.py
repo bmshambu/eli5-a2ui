@@ -1,4 +1,4 @@
-"""The model call behind every explanation: one level per call (Expert first, ELI5 on request).
+"""The model call behind every explanation: one level per call (Expert first, the simpler version on request).
 
 With uploaded documents: one structured call over the documents and no web search, so the
 answer stays faithful to them (explain_documents).

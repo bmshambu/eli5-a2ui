@@ -118,7 +118,7 @@ def describe(content) -> list[str]:
 
 
 def latest(events, author: str = "user") -> list[Document]:
-    """The most recently uploaded documents in this session, for follow-ups such as ELI5."""
+    """The most recently uploaded documents in this session, for follow-ups such as the simpler version."""
     for event in reversed(events or []):
         if getattr(event, "author", None) == author:
             docs = from_content(getattr(event, "content", None))

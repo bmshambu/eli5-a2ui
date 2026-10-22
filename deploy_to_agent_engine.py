@@ -72,6 +72,7 @@ agent_requirements = [
     "pydantic",
     "jsonschema>=4.23",
     "referencing>=0.35",
+    "reportlab>=4.2",
 ]
 
 if agent:

@@ -5,7 +5,7 @@ Layout follows the recurring patterns in brand/extract/05-layouts/layout-pattern
 a Cobalt-to-KPMG-Blue cover with the white logo and a duotone photo, a KPI strip on light
 blue tint panels, numbered contents, editorial sections in KPMG Blue with square bullets and
 banner photos, a grey caveats panel, a glossary table, sources, and a legal footer.
-Expert is the default; the "Explain it like I'm 5" follow-up uses the same template.
+Expert is the default; the "Explain it in a simpler way" follow-up uses the same template.
 
 One self-contained HTML document (inline CSS/JS/images; the frame enforces connect-src
 'none'). A postMessage {type: 'a2ui_action', action, data} reaches the agent as a v0.9 action
@@ -14,7 +14,6 @@ sends what the user would type.
 """
 import html
 import json
-import re
 
 from . import brand, charts, visuals
 from .schema import LEVELS, Explanation
@@ -84,25 +83,58 @@ ol.sources{margin:0;padding-left:22px;font-size:14px;color:var(--muted)}ol.sourc
 button[disabled]{opacity:.55;cursor:default}
 button:focus-visible,a:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 .legal{margin-top:26px;padding-top:8px;border-top:1px solid var(--line);font-size:14px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.save{position:absolute;z-index:2;top:16px;right:18px;font:inherit;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,.12);
-border:1px solid rgba(255,255,255,.6);padding:6px 12px;cursor:pointer}.save:hover{background:rgba(255,255,255,.25)}
-.note{font-size:14px;background:#ACEAFF;color:#0C233C;padding:8px 22px;margin:0}
-@page{size:A4;margin:12mm}
-@media print{:root{--bg:#fff;--ink:#00338D;--brand:#00338D;--muted:#666666;--line:#E5E5E5;--accent:#1E49E2;--tint5:#F3F6FF;--tint10:#E9EDFC}
-*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}
-.pop{animation:none!important}.save,.note,.next,.next-label{display:none!important}
-.kpi,.node,figure,.chart,.points,.analogy,tr,.toc a{break-inside:avoid}h2,.label{break-after:avoid}.banner{max-height:60mm}}
 """
 
 # Every [data-q] button asks its question once; then all of them lock so one click = one turn.
-# "Save as PDF" prints the page (the browser's print dialog has Save as PDF). GE's sandbox may
-# block print() silently; print() then returns at once, so the page is downloaded as HTML instead.
+# GE's frame blocks printing and downloads, so the PDF is built by the agent (pdf.py) from the
+# "Download PDF" button under the frame, not from the page.
+# Motion poster: the cover photo drifts (slow zoom and pan), brand frames float, a light sweep
+# crosses it, and the cover text reveals line by line. Further down, KPI numbers count up and
+# sections, diagrams and charts animate as they scroll into view. Everything is CSS transforms
+# and opacity (cheap, no video, nothing to download). Without JS the page shows fully; with
+# "reduce motion" it is still.
+_MOTION = """
+.cover{min-height:300px}
+.cover .photo{animation:kb 26s ease-in-out infinite alternate;transform-origin:70% 40%}
+@keyframes kb{from{transform:scale(1.02) translate(0,0)}to{transform:scale(1.16) translate(-3%,-2%)}}
+.cover .frames{position:absolute;inset:0;pointer-events:none}
+.cover .frames i{position:absolute;border:2px solid rgba(172,234,255,.35);animation:drift 18s ease-in-out infinite alternate}
+.cover .frames i:nth-child(1){width:150px;height:150px;right:6%;top:14%}
+.cover .frames i:nth-child(2){width:90px;height:90px;right:22%;top:52%;border-color:rgba(255,255,255,.28);animation-duration:23s;animation-delay:-6s}
+.cover .frames i:nth-child(3){width:46px;height:46px;right:12%;top:70%;background:rgba(0,184,245,.25);border:0;animation-duration:15s;animation-delay:-3s}
+@media (max-width:720px){.cover .frames i:nth-child(n+2){display:none}.cover .frames i:nth-child(1){width:110px;height:110px;right:-20px}}
+@keyframes drift{from{transform:translate(0,0) rotate(0)}to{transform:translate(-26px,14px) rotate(8deg)}}
+.cover .sweep{position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.16) 50%,transparent 65%);
+transform:translateX(-100%);animation:sweep 2.4s .5s ease-in-out both}
+@keyframes sweep{to{transform:translateX(100%)}}
+.rv0{animation:rise .7s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--d,0) * 140ms + 150ms)}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+.js .rv{opacity:0;transform:translateY(22px);transition:opacity .7s ease-out,transform .7s cubic-bezier(.2,.7,.2,1)}
+.js .rv.in{opacity:1;transform:none}
+.js figure:not(.in) .pop,.js figure:not(.in) .fill,.js figure:not(.in) circle,.js figure:not(.in) .line svg{animation-play-state:paused}
+.donut circle{animation:ring 1.1s ease-out both}@keyframes ring{from{stroke-dasharray:0 400}}
+.line svg{animation:wipe 1.3s ease-out both}@keyframes wipe{from{clip-path:inset(0 100% 0 0)}}
+.kpi{transition:transform .2s}.kpi:hover{transform:translateY(-3px)}
+@media (prefers-reduced-motion:reduce){.cover .photo,.cover .frames i,.cover .sweep,.rv0,.donut circle,.line svg{animation:none!important}
+.cover .sweep{display:none}.js .rv{opacity:1;transform:none;transition:none}}
+"""
+
 _SCRIPT = """
-var save=document.getElementById('save');if(save){save.addEventListener('click',function(){
-var t=Date.now();try{window.print();}catch(e){}if(Date.now()-t>400)return;
-var a=document.createElement('a');a.download=FILE;
-a.href=URL.createObjectURL(new Blob(['<!DOCTYPE html>'+document.documentElement.outerHTML],{type:'text/html'}));
-document.body.appendChild(a);a.click();a.remove();var n=document.getElementById('note');n.hidden=false;});}
+(function(){var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.documentElement.classList.add('js');
+function count(el){var m=/^([^0-9]*)([0-9][0-9,]*(?:\\.[0-9]+)?)(.*)$/.exec(el.textContent);if(!m||still)return;
+var end=parseFloat(m[2].replace(/,/g,'')),dp=(m[2].split('.')[1]||'').length,comma=m[2].indexOf(',')>=0,t0=null;
+if(!dp&&!comma&&end>=1900&&end<=2100)return;
+function f(v){var s=v.toFixed(dp);return comma?s.replace(/\\B(?=(\\d{3})+(?!\\d))/g,','):s;}
+function step(t){t0=t0||t;var k=Math.min((t-t0)/1200,1);el.textContent=m[1]+f(end*(1-Math.pow(1-k,3)))+m[3];
+if(k<1)requestAnimationFrame(step);}requestAnimationFrame(step);}
+var items=document.querySelectorAll('section,figure,.kpis,.panel,table.gloss,.analogy,.points,.next');
+items.forEach(function(x){x.classList.add('rv');});
+function show(x){x.classList.add('in');x.querySelectorAll('figure').forEach(function(f){f.classList.add('in');});
+if(x.classList.contains('kpis'))x.querySelectorAll('.v').forEach(count);}
+if(!('IntersectionObserver' in window)){items.forEach(show);}else{
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){show(e.target);io.unobserve(e.target);}});},{threshold:.15});
+items.forEach(function(x){io.observe(x);});}})();
 document.querySelectorAll('[data-q]').forEach(function(b){b.addEventListener('click',function(){
 window.parent.postMessage({type:'a2ui_action',action:ACTION,data:JSON.parse(b.dataset.ctx)},'*');
 document.querySelectorAll('[data-q]').forEach(function(x){x.disabled=true;});b.textContent='Asked: '+b.dataset.q;});});
@@ -116,9 +148,9 @@ def _esc(text: str) -> str:
 
 
 def level_prompt(level: str, question: str) -> str:
-    """What the user 'says' when they pick a level, e.g. "Explain it like I'm 5: Why is the sky blue?"."""
+    """What the user 'says' when they pick a level, e.g. "Explain it in a simpler way: Why is the sky blue?"."""
     if question == DOC_QUESTION:
-        return f"{DOC_QUESTION} {LEVELS[level][1][len('Explain it '):]}"  # "Explain this document like I'm 5"
+        return f"{DOC_QUESTION} {LEVELS[level][1][len('Explain it '):]}"  # "Explain this document in a simpler way"
     return f"{LEVELS[level][1]}: {question}"
 
 
@@ -126,10 +158,6 @@ def _ask(cls: str, label: str, prompt: str, **context) -> str:
     """A button that sends `prompt` (plus optional context) back to the agent as an ask action."""
     ctx = json.dumps({"prompt": prompt, **context})
     return f'<button class="{cls}" data-q="{_esc(prompt)}" data-ctx="{_esc(ctx)}">{_esc(label)}</button>'
-
-
-def _filename(title: str) -> str:
-    return (re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-")[:60] or "explainer") + ".html"
 
 
 def _logo() -> str:
@@ -140,11 +168,11 @@ def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     chips = "".join(f'<span class="chip-tag">{_esc(t)}</span>' for t in e.tags[:3])
     return (
         f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
-        '<div class="shade"></div><button class="save" id="save" type="button">Save as PDF</button>'
-        f'<div class="in">{_logo()}'
-        f'<div class="eyebrow">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1>{_esc(e.title)}</h1>'
-        f'<p class="lede">{_esc(e.one_liner)}</p>'
-        f'<div class="chips">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
+        '<div class="shade"></div><div class="frames" aria-hidden="true"><i></i><i></i><i></i></div><div class="sweep"></div>'
+        f'<div class="in"><div class="rv0">{_logo()}</div>'
+        f'<div class="eyebrow rv0" style="--d:1">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1 class="rv0" style="--d:2">{_esc(e.title)}</h1>'
+        f'<p class="lede rv0" style="--d:3">{_esc(e.one_liner)}</p>'
+        f'<div class="chips rv0" style="--d:4">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
         "</div></header>"
     )
 
@@ -210,14 +238,13 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}</style></head><body>"
+        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}</style></head><body>"
         f'{_cover(e, level, bool(documents))}'
-        '<p class="note" id="note" hidden>This panel does not allow printing, so the page was sent as a download instead '
-        f'(if your browser allowed it). Open the downloaded file, choose Print, then Save as PDF.</p><main class="wrap">{_kpis(e)}'
+        f'<main class="wrap">{_kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'
         f'{_bullets(e.takeaways)}{contents}{sections}{caveats}{glossary}{sources_html}'
         f'<div class="label next-label">Keep going</div><div class="next">{switch}{chips}</div>'
         '<footer class="legal"><span>© 2026 KPMG International Cooperative ("KPMG International"), a Swiss entity. '
         'All rights reserved.</span><span>KPMG. Make the Difference.</span></footer>'
-        f"</main><script>var ACTION={json.dumps(ASK_ACTION)},FILE={json.dumps(_filename(e.title))};{_SCRIPT}</script></body></html>"
+        f"</main><script>var ACTION={json.dumps(ASK_ACTION)};{_SCRIPT}</script></body></html>"
     )

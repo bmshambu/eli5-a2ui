@@ -1,21 +1,23 @@
 # eli5-a2ui
 
-An "Explain Like I'm 5" agent for Gemini Enterprise (inspired by [eli5.cc](https://eli5.cc/)), built with Python ADK on Vertex AI Agent Engine and A2UI v0.9. Each answer is a self-contained, KPMG-branded HTML briefing (cover, key stats, several sections with diagrams and brand photos, caveats, glossary, sources, follow-up questions) shown in an `IFrameSrcdoc` inside a `Canvas` side panel. The simple "Explain it like I'm 5" version is a follow-up.
+An "Explain Like I'm 5" agent for Gemini Enterprise (inspired by [eli5.cc](https://eli5.cc/)), built with Python ADK on Vertex AI Agent Engine and A2UI v0.9. Each answer is a self-contained, KPMG-branded HTML briefing (cover, key stats, several sections with diagrams and brand photos, caveats, glossary, sources, follow-up questions) shown in an `IFrameSrcdoc` inside a `Canvas` side panel. The simpler version ("Explain it in a simpler way") is a follow-up. Users never see the name "ELI5"; it survives only in the repo name and internal keys.
 
 Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718dbtsRv8oHJahiHeQp)
 
 ## Status
 
 - **Step 0 probe: done.** JavaScript and `postMessage` clicks work inside `IFrameSrcdoc` in GE, in chat and in a `Canvas`. Results: [PROBE.md](PROBE.md).
-- **Pipeline and explainer page: working in GE** (first test 2026-10-22). Now Expert first (a detailed multi-section briefing), ELI5 as a follow-up, styled with the KPMG 2026 brand library.
+- **Pipeline and explainer page: working in GE** (first test 2026-10-22). Now Expert first (a detailed multi-section briefing), the simpler version as a follow-up, styled with the KPMG 2026 brand library.
 
 ## How a turn works
 
-1. The question and level come from the typed text, or from an `ask` click (a level button, "Go deeper" or a follow-up chip inside the page, or a native example button). A new question gets the **Expert** briefing. "Explain it like I'm 5" (the button at the end of the page, or typed) gives the simple version of the last question, which is kept in session state; "expert" or "go deeper" goes back. There is no ELI10 or ELI15 any more ("like I'm 10" is read as ELI5). Greetings get a welcome card.
+1. The question and level come from the typed text, or from an `ask` click (a level button, "Go deeper" or a follow-up chip inside the page, or a native example button). A new question gets the **Expert** briefing. "Explain it in a simpler way" (the button at the end of the page, or typed: "simpler", "in simple terms", "in plain English", and the old "like I'm 5" all work) gives the simpler version of the last question, which is kept in session state; "expert" or "go deeper" goes back. It is written for a busy professional new to the topic: plain English, no jargon. Greetings get a welcome card.
 2. `llm.explain`: one Gemini call with Google Search grounding and a `response_schema` returns the `Explanation` for that one level (`schema.py`), with low thinking for speed. If the model can't combine search and a schema (a 400), it switches for good to two calls: research, then write.
 3. `render.explanation_card`: a `Canvas` (opener card in chat, side panel) holding the explainer page in an `IFrameSrcdoc`, plus the source links natively below it. Every reply goes through `validate.check()`.
 
-The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layouts`: a Cobalt-to-KPMG-Blue cover with the white logo and a duotone brand photo, a strip of key stats, an executive summary and takeaways, numbered contents, 4 or 5 sections (paragraphs, a banner photo on up to two, a diagram, key points), caveats, a glossary, sources, then the ELI5 button and follow-up questions. Diagrams (`visuals.py`: flow, cycle, parts or compare) use square numbered markers and the brand palette instead of emoji. The model picks photos by id from the catalogue in `brand.py`, so only curated brand images can appear. If a model call fails the user gets a card with a retry button, not a broken turn.
+The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layouts`: a Cobalt-to-KPMG-Blue cover with the white logo and a duotone brand photo, a strip of key stats, an executive summary and takeaways, numbered contents, 4 or 5 sections (paragraphs, a banner photo on up to two, a diagram, key points), caveats, a glossary, sources, then the "Explain it in a simpler way" button and follow-up questions. Diagrams (`visuals.py`: flow, cycle, parts or compare) use square numbered markers and the brand palette instead of emoji. The model picks photos by id from the catalogue in `brand.py`, so only curated brand images can appear. If a model call fails the user gets a card with a retry button, not a broken turn.
+
+**Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full, and with "reduce motion" switched on it is still.
 
 ## Uploaded documents
 
@@ -30,7 +32,7 @@ The main use is KPMG staff uploading a document in GE chat and asking for it to 
   - keep every key figure, date, obligation and recommendation;
   - add nothing from outside the document, and put anything unclear in the caveats.
 - The page says "Document explained", shows "From the document: …" under each section, and names the file where web sources would go.
-- An upload with no text, or with "explain this", gets the Expert briefing. "Explain this document like I'm 5" (the ELI5 button) and later questions in the same session reuse the latest uploaded document, which is found in the session history.
+- An upload with no text, or with "explain this", gets the Expert briefing. "Explain this document in a simpler way" (the button) and later questions in the same session reuse the latest uploaded document, which is found in the session history.
 - Each turn logs the kinds of parts it received (`turn parts: [...]`), so the first GE test shows exactly how GE delivers uploads.
 
 ## Diagrams
@@ -51,6 +53,10 @@ The other three are `cycle`, `parts` and `compare`. All of them are built live i
 
 A section can carry a `chart` (bar, line or donut) when it turns on 3 or more comparable numbers. The prompt allows only numbers stated in the document or the sources, exactly as given, with a `source` note such as "Table 2, p. 7"; if the numbers are not there, there is no chart. Bars and labels are HTML so text stays at 14px or more at any panel width; series that don't match the labels are dropped rather than drawn wrong.
 
+## Download PDF
+
+GE's chat frame blocks printing and downloads, so the page can't save itself. A native **Download PDF** button sits under the frame. Clicking it sends a `pdf` action with the question and level; the agent rebuilds that explanation from session state (`eli5_pages`, the last 4 shown, so no new model call) and `pdf.py` turns it into a KPMG-branded A4 PDF with reportlab: cover with the brand photo and white logo, key stats, sections with charts (vector bar, line, donut) and diagrams (numbered steps, compare columns, 2x2 matrix), caveats, glossary, document name and sources. It uses the embedded Liberation Sans (Arial-metric, OFL, `agent/assets/fonts`) so symbols such as λ and ⁴ render. The PDF goes back in chat as a file part (`application/pdf`), which ADK sends as an A2A FilePart; a PDF for an old card that is no longer in state is explained again first.
+
 ## Layout
 
 ```
@@ -58,7 +64,8 @@ agent/
   agent.py         root_agent: finds question + level, explains, renders (AGENT_MODE=probe serves the probe)
   llm.py           the Gemini call: Google Search grounding + structured output, one level at a time
   schema.py        Explanation: cover, key stats, sections (diagram, photo id), caveats, glossary, follow-ups
-  explainer.py     the KPMG-branded HTML page and its ELI5 / follow-up buttons
+  explainer.py     the KPMG-branded HTML page and its "simpler way" / follow-up buttons
+  pdf.py           the same explanation as a KPMG-branded A4 PDF (reportlab), for Download PDF
   visuals.py       section diagrams: flow, cycle, parts, compare (HTML/CSS, brand palette)
   brand.py         palette, logo, and the photo catalogue the model chooses from
   assets/          KPMG logos (SVG) and brand/*.jpg web banners (about 515 KB in total)
