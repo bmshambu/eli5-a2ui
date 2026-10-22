@@ -6,7 +6,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types as genai_types
 
 from agent import a2ui, probe, validate
-from agent.agent import respond, root_agent
+from agent.probe_agent import probe_agent as root_agent, respond
 
 
 @pytest.mark.parametrize("trigger", list(probe.BUILDERS))
