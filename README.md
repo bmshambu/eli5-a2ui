@@ -17,6 +17,8 @@ Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718d
 
 The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layouts`: a Cobalt-to-KPMG-Blue cover with the white logo and a duotone brand photo, a strip of key stats, an executive summary and takeaways, numbered contents, 4 or 5 sections (paragraphs, a banner photo on up to two, a diagram, key points), caveats, a glossary, sources, then the "Explain it in a simpler way" button and follow-up questions. Diagrams (`visuals.py`: flow, cycle, parts or compare) use square numbered markers and the brand palette instead of emoji. The model picks photos by id from the catalogue in `brand.py`, so only curated brand images can appear. If a model call fails the user gets a card with a retry button, not a broken turn.
 
+**Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full, and with "reduce motion" switched on it is still.
+
 ## Uploaded documents
 
 The main use is KPMG staff uploading a document in GE chat and asking for it to be explained.

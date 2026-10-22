@@ -332,6 +332,13 @@ def test_page_no_longer_prints_itself():
     assert "window.print" not in page and "@media print" not in page and "Save as PDF" not in page
 
 
+def test_page_has_motion_poster_that_respects_reduced_motion():
+    page = explainer.page(SKY, [], Q)
+    assert "@keyframes kb" in page and 'class="frames"' in page and 'class="sweep"' in page
+    assert "IntersectionObserver" in page and "requestAnimationFrame" in page  # scroll reveal, KPI count-up
+    assert "prefers-reduced-motion:reduce" in page and "prefers-reduced-motion: reduce" in page  # CSS and JS
+
+
 def test_card_has_native_download_pdf_button():
     comps = _components(render.explanation_card(SKY, SOURCES, Q, "eli5"))
     assert comps["pdf"]["label"] == "Download PDF" and "pdf" in comps["root"]["children"]
