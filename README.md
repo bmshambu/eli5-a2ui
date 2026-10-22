@@ -11,7 +11,7 @@ Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718d
 ## Layout
 
 ```
-eli5_agent/
+agent/
   agent.py         probe agent: answers in a before_model_callback, no model call
   probe.py         one builder per trigger word, plus the "Received" echo card
   probe_pages.py   the HTML pages shown in the iframe (inline CSS/JS/SVG only)
