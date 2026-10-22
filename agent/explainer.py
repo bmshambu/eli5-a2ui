@@ -119,6 +119,46 @@ transform:translateX(-100%);animation:sweep 2.4s .5s ease-in-out both}
 .cover .sweep{display:none}.js .rv{opacity:1;transform:none;transition:none}}
 """
 
+# The four KPMG theme recipes (brand/extract/08-themes). Corporate is the base style above; the
+# others adjust it. The body carries the class t-<theme>.
+THEME_CSS = """
+.cover h1 .hl{color:#ACEAFF}
+body.t-ai{--bg:#1534C4;--ink:#FFFFFF;--brand:#FFFFFF;--muted:#ACEAFF;--line:rgba(172,234,255,.28);--accent:#00B8F5;--hi:#B497FF;
+--tint5:rgba(5,11,46,.28);--tint10:rgba(5,11,46,.38);--tint20:rgba(255,255,255,.12);
+--c0:#00B8F5;--c1:#76D2FF;--c2:#B497FF;--c3:#7213EA;--c4:#ACEAFF;color-scheme:dark;min-height:100vh;
+background:radial-gradient(ellipse at 85% 0%,rgba(0,184,245,.22),transparent 45%),linear-gradient(180deg,#1E49E2 0%,#1534C4 35%,#0C1C8C 75%,#050B2E 100%)}
+.t-ai .cover{background:linear-gradient(120deg,#1E49E2,#0A1E7A)}
+.t-ai .cover .photo,.t-ai-platform .cover .photo,.t-finance-data .cover .photo{mix-blend-mode:normal;opacity:.95}
+.t-ai .cover .shade{background:linear-gradient(90deg,rgba(30,73,226,.97) 0%,rgba(30,73,226,.82) 42%,rgba(30,73,226,.05) 100%)}
+.t-ai .eyebrow,.t-ai-platform .eyebrow{color:#00B8F5}
+.t-ai .cover h1 .hl,.t-ai-platform .cover h1 .hl{color:#00B8F5}
+.t-ai .kpi{background:rgba(5,11,46,.38);border:1px solid rgba(0,184,245,.55);box-shadow:0 0 18px rgba(0,184,245,.22)}
+.t-ai .kpi .v{color:#00B8F5;text-shadow:0 0 14px rgba(0,184,245,.55)}.t-ai .kpi .ic{color:#76D2FF}
+.t-ai .points,.t-ai .panel,.t-ai .chart,.t-ai .analogy{background:rgba(5,11,46,.32);border:1px solid rgba(0,184,245,.5);box-shadow:0 0 16px rgba(0,184,245,.15)}
+.t-ai .toc a{background:rgba(5,11,46,.45);border:1px solid rgba(0,184,245,.35)}.t-ai .toc{background:transparent}
+.t-ai .primary{background:#00B8F5;color:#00338D;border-radius:999px}.t-ai .chip{border-radius:999px;border:1px solid #00B8F5;background:transparent}
+.t-ai .conf{border-radius:999px}.t-ai table.gloss th{background:rgba(0,184,245,.25)}
+.t-ai-platform .cover{background:linear-gradient(90deg,#050B2E,#0A1E7A)}
+.t-ai-platform .cover .shade{background:linear-gradient(90deg,#050B2E 0%,rgba(5,11,46,.9) 42%,rgba(10,30,122,.12) 100%)}
+.t-ai-platform .g0{--c:#D2DBF9}.t-ai-platform .g1{--c:#76D2FF}.t-ai-platform .g2{--c:#00B8F5}.t-ai-platform .g3,.t-ai-platform .g4{--c:#1E49E2}
+.t-ai-platform .g0 .head,.t-ai-platform .g1 .head,.t-ai-platform .g0.hd,.t-ai-platform .g1.hd{color:#00338D}
+.t-ai-platform .toc a{background:#050B2E}.t-ai-platform .toc{background:#050B2E}
+.t-ai-platform .kpi{border-top-color:#1E49E2}
+.t-finance-data .cover{background:linear-gradient(115deg,#1E49E2 0%,#1E49E2 55%,#76D2FF 100%)}
+.t-finance-data .cover .shade{background:linear-gradient(90deg,rgba(30,73,226,.98) 0%,rgba(30,73,226,.86) 48%,rgba(30,73,226,0) 100%)}
+.cstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin:4px 0 16px;max-width:620px}
+.cstats div{border-top:3px solid #00B8F5;padding-top:8px}
+.cstats .v{display:block;font-family:"KPMG Bold","Arial Narrow","Helvetica Neue Condensed",Arial,sans-serif;font-stretch:condensed;
+font-size:32px;font-weight:700;line-height:1.1;color:#fff}
+.cstats .l{display:block;font-size:14px;color:#ACEAFF;margin-top:2px}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;height:6px}.tabs i:nth-child(1){background:#00B8F5}.tabs i:nth-child(2){background:#7213EA}.tabs i:nth-child(3){background:#76D2FF}
+.t-finance-data h2{color:var(--fin-title,#1E49E2)}
+.t-finance-data .chart{background:var(--tint5);border-color:var(--tint20)}
+.t-finance-data .bars.one .fill{--s:#00B8F5!important}.t-finance-data .bars.one .grp:last-child .fill{--s:var(--fin-latest,#00338D)!important}
+.t-finance-data table.gloss th{background:transparent;color:var(--brand);border-bottom:3px solid var(--brand)}
+@media (prefers-color-scheme:dark){.t-finance-data{--fin-title:#76D2FF;--fin-latest:#ACEAFF}}
+"""
+
 _SCRIPT = """
 (function(){var still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 document.documentElement.classList.add('js');
@@ -132,6 +172,7 @@ var items=document.querySelectorAll('section,figure,.kpis,.panel,table.gloss,.an
 items.forEach(function(x){x.classList.add('rv');});
 function show(x){x.classList.add('in');x.querySelectorAll('figure').forEach(function(f){f.classList.add('in');});
 if(x.classList.contains('kpis'))x.querySelectorAll('.v').forEach(count);}
+setTimeout(function(){document.querySelectorAll('.cstats .v').forEach(count);},600);
 if(!('IntersectionObserver' in window)){items.forEach(show);}else{
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){show(e.target);io.unobserve(e.target);}});},{threshold:.15});
 items.forEach(function(x){io.observe(x);});}})();
@@ -164,16 +205,33 @@ def _logo() -> str:
     return brand.logo_svg("white").replace("<svg", '<svg class="logo" role="img" aria-label="KPMG"', 1)
 
 
+def _title(title: str) -> str:
+    """The title with its last words marked, for the themes' two-tone cover headline."""
+    words = title.split()
+    if len(words) < 3:
+        return _esc(title)
+    k = 2 if len(words) > 4 else 1
+    return f'{_esc(" ".join(words[:-k]))} <span class="hl">{_esc(" ".join(words[-k:]))}</span>'
+
+
+def _cover_stats(e: Explanation) -> str:
+    """Finance Data puts up to three headline figures on the cover."""
+    stats = "".join(f'<div><span class="v">{_esc(s.value)}</span><span class="l">{_esc(s.label)}</span></div>'
+                    for s in e.key_stats[:3])
+    return f'<div class="cstats rv0" style="--d:4">{stats}</div>' if stats else ""
+
+
 def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     chips = "".join(f'<span class="chip-tag">{_esc(t)}</span>' for t in e.tags[:3])
+    finance = e.theme == "finance-data"
     return (
         f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
         '<div class="shade"></div><div class="frames" aria-hidden="true"><i></i><i></i><i></i></div><div class="sweep"></div>'
         f'<div class="in"><div class="rv0">{_logo()}</div>'
-        f'<div class="eyebrow rv0" style="--d:1">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1 class="rv0" style="--d:2">{_esc(e.title)}</h1>'
-        f'<p class="lede rv0" style="--d:3">{_esc(e.one_liner)}</p>'
-        f'<div class="chips rv0" style="--d:4">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
-        "</div></header>"
+        f'<div class="eyebrow rv0" style="--d:1">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1 class="rv0" style="--d:2">{_title(e.title)}</h1>'
+        f'<p class="lede rv0" style="--d:3">{_esc(e.one_liner)}</p>{_cover_stats(e) if finance else ""}'
+        f'<div class="chips rv0" style="--d:{5 if finance else 4}">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
+        "</div></header>" + ('<div class="tabs" aria-hidden="true"><i></i><i></i><i></i></div>' if finance else "")
     )
 
 
@@ -238,9 +296,10 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}</style></head><body>"
+        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}{THEME_CSS}</style></head>"
+        f'<body class="t-{e.theme}">'
         f'{_cover(e, level, bool(documents))}'
-        f'<main class="wrap">{_kpis(e)}'
+        f'<main class="wrap">{_kpis(e.model_copy(update={"key_stats": e.key_stats[3:]})) if e.theme == "finance-data" else _kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'
         f'{_bullets(e.takeaways)}{contents}{sections}{caveats}{glossary}{sources_html}'
         f'<div class="label next-label">Keep going</div><div class="next">{switch}{chips}</div>'

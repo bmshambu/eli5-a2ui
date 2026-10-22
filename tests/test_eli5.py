@@ -425,3 +425,28 @@ def test_chart_appears_in_its_section():
     sections = [SKY.sections[0].model_copy(update={"chart": CHARTS["donut"]})] + SKY.sections[1:]
     page = explainer.page(SKY.model_copy(update={"sections": sections}), [], Q)
     assert page.count('<figure class="chart"') == 1 and "Nitrogen" in page
+
+
+# --- KPMG theme recipes (brand/extract/08-themes) ----------------------------------------
+
+@pytest.mark.parametrize("theme", list(brand.THEMES))
+def test_every_theme_styles_the_page_and_pdf(theme):
+    x = SKY.model_copy(update={"theme": theme, "hero_photo": brand.THEMES[theme].heroes[0]})
+    page = explainer.page(x, [], Q)
+    assert f'<body class="t-{theme}">' in page
+    assert all(h in brand.PHOTO_IDS for h in brand.THEMES[theme].heroes)
+    assert pdf.build(x, [], "expert").startswith(b"%PDF")
+
+
+def test_finance_theme_puts_three_figures_on_the_cover():
+    page = explainer.page(SKY.model_copy(update={"theme": "finance-data"}), [], Q)
+    cover = page.split("</header>")[0]
+    assert 'class="cstats' in cover and all(s.value in cover for s in SKY.key_stats[:3])
+    assert page.count('class="kpi"') == max(len(SKY.key_stats) - 3, 0) and 'class="tabs"' in page
+
+
+def test_theme_defaults_to_corporate_and_is_offered_to_the_model(fake):
+    assert Explanation.model_validate_json(SKY.model_copy(update={}).model_dump_json(exclude={"theme"})).theme == "corporate"
+    asyncio.run(llm.explain(eli5._client, Q))
+    assert "finance-data" in json.dumps(Explanation.model_json_schema())
+    assert "Choose the theme" in fake.calls[0][0]

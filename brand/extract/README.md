@@ -24,6 +24,9 @@ Open **index.html** in a browser for the visual catalogue. **asset-index.csv** l
   - icons (6): line icons traced as vectors from the annual report, in blue / cobalt / white
   - from-pdfs (23): high-res crops of the agenda roadmap, gradient cards, maturity charts, stat callouts, chart styles and Impact Plan infographic panels
 
+- **08-themes/**: theme recipes. Open 08-themes/index.html. Four flavours (KPMG Corporate, KPMG AI, KPMG AI Platform, KPMG Finance Data), each a recipe .md plus a live preview .demo.tsx
+- **04-photos/07-ai-neon-backgrounds** (8) and **08-finance-and-banking** (12): added from the KPMG US AI Pulse Q4 2025 deck and the Hong Kong Banking Outlook 2026 (PDFs in ../sources-2026)
+
 ## Notes
 - 2026 KPMG material uses the refreshed palette (Cobalt `#1E49E2`, Pacific Blue `#00B8F5`, Purple `#7213EA`) alongside KPMG Blue `#00338D`. The older Medium Blue / Violet / Green palette in the branding skill did not appear in these PDFs.
 - QR codes (24), a repeated set of 5 publication thumbnails and tiny icons under 150 px were left out. Exact duplicates across pages were removed.

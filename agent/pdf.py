@@ -40,6 +40,14 @@ BLUE, COBALT, DARK = colors.HexColor(brand.KPMG_BLUE), colors.HexColor(brand.COB
 PACIFIC, PURPLE = colors.HexColor(brand.PACIFIC), colors.HexColor(brand.PURPLE)
 MUTED, LINE, TINT = colors.HexColor("#666666"), colors.HexColor("#E5E5E5"), colors.HexColor("#F3F6FF")
 SERIES = (BLUE, PACIFIC, PURPLE, COBALT, colors.HexColor(brand.LIGHT_PURPLE))
+# Cover per KPMG theme (brand/extract/08-themes): overlay colour and strength, eyebrow colour,
+# and the colour of the title's last words. Inner pages stay white in every theme so they print.
+COVERS = {
+    "corporate": (BLUE, 0.78, colors.white, colors.HexColor(brand.PALE_BLUE)),
+    "ai": (COBALT, 0.82, PACIFIC, PACIFIC),
+    "ai-platform": (colors.HexColor("#050B2E"), 0.84, PACIFIC, PACIFIC),
+    "finance-data": (COBALT, 0.82, colors.white, colors.white),
+}
 LEGAL = '© 2026 KPMG International Cooperative ("KPMG International"), a Swiss entity. All rights reserved.'
 
 # Liberation Sans: Arial-metric like the brand's Arial fallback, and unlike the built-in
@@ -101,8 +109,8 @@ def _label(text: str) -> Paragraph:
     return _p(text.upper(), "label")
 
 
-def _kpis(e: Explanation):
-    stats = e.key_stats[:4]
+def _kpis(stats):
+    stats = stats[:4]
     if not stats:
         return None
     tiles = [[_p(s.value, "kv"), _p(s.label, "kl")] for s in stats]
@@ -246,7 +254,8 @@ def chart(c: Chart | None) -> list:
 
 def _story(e: Explanation, sources: list[dict], documents) -> list:
     story = [NextPageTemplate("body")]
-    kpis = _kpis(e)
+    # Finance Data shows its first three figures on the cover.
+    kpis = _kpis(e.key_stats[3:] if e.theme == "finance-data" else e.key_stats)
     if kpis:
         story += [kpis, Spacer(1, 6)]
     story += [_label("At a glance"), _p(e.summary)]
@@ -256,8 +265,9 @@ def _story(e: Explanation, sources: list[dict], documents) -> list:
                                   ("LEFTPADDING", (0, 0), (-1, -1), 10)]))
     story += _bullets(e.takeaways)
     used = {e.hero_photo}
+    h2 = ParagraphStyle("h2t", parent=_S["h2"], textColor=COBALT) if e.theme == "finance-data" else _S["h2"]
     for i, s in enumerate(e.sections, 1):
-        head = [Paragraph(f'<font color="{brand.COBALT}">{i:02d}</font>  {_x(s.heading)}', _S["h2"])]
+        head = [Paragraph(f'<font color="{brand.COBALT}">{i:02d}</font>  {_x(s.heading)}', h2)]
         if s.doc_ref:
             head.append(_p(f"From the document: {s.doc_ref}", "small"))
         if s.photo and s.photo not in used and len(used) <= MAX_PHOTOS:
@@ -284,6 +294,22 @@ def _story(e: Explanation, sources: list[dict], documents) -> list:
     return story
 
 
+def _cover_stats(canvas, stats, y: float) -> None:
+    """Up to three headline figures on the Finance Data cover, each under a Pacific Blue rule."""
+    w = BODY_W * 0.9 / 3
+    for i, s in enumerate(stats):
+        x = MARGIN + i * w
+        canvas.setStrokeColor(PACIFIC)
+        canvas.setLineWidth(2)
+        canvas.line(x, y, x + w - 6 * mm, y)
+        canvas.setFillColor(colors.white)
+        canvas.setFont("Sans-Bold", 18)
+        canvas.drawString(x, y - 8 * mm, s.value[:14])
+        label = Paragraph(_x(s.label), ParagraphStyle("cl", parent=_S["small"], textColor=colors.HexColor(brand.PALE_BLUE)))
+        _, h = label.wrap(w - 6 * mm, 20 * mm)
+        label.drawOn(canvas, x, y - 10 * mm - h)
+
+
 def build(e: Explanation, sources: list[dict], level: str = "expert", documents=()) -> bytes:
     """The PDF bytes for one explanation."""
     buf = io.BytesIO()
@@ -293,19 +319,27 @@ def build(e: Explanation, sources: list[dict], level: str = "expert", documents=
         canvas.saveState()
         top = H - COVER_H
         canvas.drawImage(_photo(e.hero_photo), (W - COVER_H * 2.5) / 2, top, COVER_H * 2.5, COVER_H)  # 5:2 crops, centred
-        canvas.setFillColor(BLUE)
-        canvas.setFillAlpha(0.78)
+        wash, alpha, eyebrow_colour, hl = COVERS.get(e.theme, COVERS["corporate"])
+        canvas.setFillColor(wash)
+        canvas.setFillAlpha(alpha)
         canvas.rect(0, top, W, COVER_H, stroke=0, fill=1)
         canvas.setFillAlpha(1)
         canvas.drawImage(ImageReader(str(brand.ASSETS / "kpmg-logo-white.png")), MARGIN, H - 22 * mm,
                          width=26 * mm, height=10.2 * mm, mask="auto")
         y = H - 34 * mm
-        for text, style in ((eyebrow.upper(), "eyebrow"), (e.title, "title"), (e.one_liner, "lede")):
-            para = Paragraph(_x(text), _S[style])
+        words = e.title.split()
+        k = 0 if len(words) < 3 else 2 if len(words) > 4 else 1
+        title = _x(" ".join(words[:len(words) - k]))
+        if k:
+            title += f' <font color="{hl.hexval().replace("0x", "#")}">{_x(" ".join(words[-k:]))}</font>'
+        eb = ParagraphStyle("eb", parent=_S["eyebrow"], textColor=eyebrow_colour)
+        for para in (Paragraph(_x(eyebrow.upper()), eb), Paragraph(title, _S["title"]), Paragraph(_x(e.one_liner), _S["lede"])):
             _, h = para.wrap(BODY_W * 0.9, COVER_H)
             y -= h
             para.drawOn(canvas, MARGIN, y)
             y -= 4 * mm
+        if e.theme == "finance-data":
+            _cover_stats(canvas, e.key_stats[:3], y)
         _footer(canvas)
         canvas.restoreState()
 
