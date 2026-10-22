@@ -36,12 +36,13 @@ def _card(prefix: str, children: list[dict]) -> list[dict]:
     return a2ui.surface(prefix, comps)
 
 
-def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = DEFAULT_LEVEL) -> list[dict]:
+def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = DEFAULT_LEVEL,
+                     documents: list[str] = ()) -> list[dict]:
     """Opener card in chat; the explainer page opens in the side panel. Source links are repeated
     natively under the frame because links inside the sandboxed frame may not open."""
     children = ["frame"]
     comps = [
-        {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level), "height": FRAME_HEIGHT},
+        {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level, documents), "height": FRAME_HEIGHT},
     ]
     if sources:
         links = " · ".join(f"[{i}. {_md_label(s['title'])}]({s['uri']})" for i, s in enumerate(sources, 1))
@@ -56,7 +57,7 @@ def welcome_card() -> list[dict]:
     buttons = [_ask_button(f"ex{i}", q) for i, q in enumerate(EXAMPLES)]
     return _card("eli5-welcome", [
         _text("title", "Explain anything", "h4"),
-        _text("intro", "Ask me about anything. I'll research it and write a detailed, illustrated briefing. "
+        _text("intro", "Ask me about anything, or upload a document and ask me to explain it. I'll write a detailed, illustrated briefing. "
                        "Then ask for ELI5 if you want the simple version."),
         *buttons,
     ])

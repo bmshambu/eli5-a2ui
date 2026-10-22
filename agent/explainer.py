@@ -19,6 +19,7 @@ from . import brand, visuals
 from .schema import LEVELS, Explanation
 
 ASK_ACTION = "ask"
+DOC_QUESTION = "Explain this document"  # the question when a document is uploaded without one
 MAX_SECTION_PHOTOS = 2  # plus the cover photo; keeps the page well under GE's per-message limit
 
 _STYLE = """
@@ -63,6 +64,7 @@ ul.sq li::before{content:"";position:absolute;left:0;top:.5em;width:9px;height:9
 @media (max-width:560px){.kpis,.toc{grid-template-columns:1fr 1fr}}
 .banner{display:block;width:100%;aspect-ratio:5/2;object-fit:cover;margin:4px 0 14px}
 .points{background:var(--tint5);border:1px solid var(--line);padding:6px 16px;margin:4px 0 14px}
+.ref{font-size:14px;color:var(--muted);margin:-4px 0 10px;border-left:3px solid var(--hi);padding-left:8px}
 .caption{font-size:14px;color:var(--muted);margin:6px 0 0}
 .panel{background:var(--tint10);padding:12px 18px;margin:6px 0}
 table.gloss{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
@@ -97,6 +99,8 @@ def _esc(text: str) -> str:
 
 def level_prompt(level: str, question: str) -> str:
     """What the user 'says' when they pick a level, e.g. "Explain it like I'm 5: Why is the sky blue?"."""
+    if question == DOC_QUESTION:
+        return f"{DOC_QUESTION} {LEVELS[level][1][len('Explain it '):]}"  # "Explain this document like I'm 5"
     return f"{LEVELS[level][1]}: {question}"
 
 
@@ -110,12 +114,12 @@ def _logo() -> str:
     return brand.logo_svg("white").replace("<svg", '<svg class="logo" role="img" aria-label="KPMG"', 1)
 
 
-def _cover(e: Explanation, level: str) -> str:
+def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     chips = "".join(f'<span class="chip-tag">{_esc(t)}</span>' for t in e.tags[:3])
     return (
         f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
         f'<div class="shade"></div><div class="in">{_logo()}'
-        f'<div class="eyebrow">Explained · {LEVELS[level][0]}</div><h1>{_esc(e.title)}</h1>'
+        f'<div class="eyebrow">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1>{_esc(e.title)}</h1>'
         f'<p class="lede">{_esc(e.one_liner)}</p>'
         f'<div class="chips">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
         "</div></header>"
@@ -135,6 +139,11 @@ def _bullets(items: list[str]) -> str:
     return "<ul class=\"sq\">" + "".join(f"<li>{_esc(t)}</li>" for t in items) + "</ul>" if items else ""
 
 
+def _cols(n: int) -> int:
+    """Contents grid columns that leave no lone card where possible."""
+    return 3 if n % 3 == 0 else 2 if n % 2 == 0 else 3
+
+
 def _sections(e: Explanation) -> tuple[str, str]:
     """(contents grid, section bodies). Section photos are capped and never repeat the cover."""
     used, toc, body = {e.hero_photo}, [], []
@@ -147,12 +156,14 @@ def _sections(e: Explanation) -> tuple[str, str]:
         paras = "".join(f"<p>{_esc(p)}</p>" for p in s.paragraphs)
         points = f'<div class="points">{_bullets(s.points[:4])}</div>' if s.points else ""
         body.append(f'<section id="s{i}"><h2><span class="no">{i:02d}</span>{_esc(s.heading)}</h2>'
+                    + (f'<div class="ref">From the document: {_esc(s.doc_ref)}</div>' if s.doc_ref else "") +
                     f"{photo}{paras}{visuals.render(s.diagram, e.title)}{points}</section>")
-    contents = f'<div class="label">Contents</div><nav class="toc" style="--cols:{2 if len(toc) in (2, 4) else 3}">{"".join(toc)}</nav>' if len(toc) > 1 else ""
+    contents = f'<div class="label">Contents</div><nav class="toc" style="--cols:{_cols(len(toc))}">{"".join(toc)}</nav>' if len(toc) > 1 else ""
     return contents, "".join(body)
 
 
-def page(e: Explanation, sources: list[dict], question: str, level: str = "expert") -> str:
+def page(e: Explanation, sources: list[dict], question: str, level: str = "expert", documents: list[str] = ()) -> str:
+    """The whole page. `documents` names the uploaded files the explanation is based on."""
     contents, sections = _sections(e)
     analogy = f'<div class="analogy"><b>Think of it like</b>{_esc(e.analogy)}</div>' if e.analogy else ""
     caveats = (f'<div class="label">Caveats and open questions</div><div class="panel">{_bullets(e.caveats)}</div>'
@@ -164,6 +175,10 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
         f'<li><a href="{_esc(s["uri"])}" target="_blank" rel="noopener">{_esc(s["title"])}</a></li>' for s in sources
     )
     sources_html = f'<div class="label">Sources</div><ol class="sources">{source_list}</ol>' if sources else ""
+    if documents:
+        names = "".join(f"<li>{_esc(n)}</li>" for n in documents)
+        sources_html = (f'<div class="label">Based on your document</div><ol class="sources">{names}</ol>'
+                        '<p class="caption">Explained from the document only, without web search.</p>' + sources_html)
     other = "eli5" if level == "expert" else "expert"
     switch = _ask("primary", f"{LEVELS[other][1]} →", level_prompt(other, question), level=other, question=question)
     chips = "".join(_ask("chip", q, q) for q in e.follow_ups[:3])
@@ -171,7 +186,7 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}</style></head><body>"
-        f'{_cover(e, level)}<main class="wrap">{_kpis(e)}'
+        f'{_cover(e, level, bool(documents))}<main class="wrap">{_kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'
         f'{_bullets(e.takeaways)}{contents}{sections}{caveats}{glossary}{sources_html}'
         f'<div class="label">Keep going</div><div class="next">{switch}{chips}</div>'

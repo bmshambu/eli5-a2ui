@@ -17,6 +17,22 @@ Plan: [ELI5 agent for Gemini Enterprise: plan](https://claude.ai/artifact/6p718d
 
 The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layouts`: a Cobalt-to-KPMG-Blue cover with the white logo and a duotone brand photo, a strip of key stats, an executive summary and takeaways, numbered contents, 4 or 5 sections (paragraphs, a banner photo on up to two, a diagram, key points), caveats, a glossary, sources, then the ELI5 button and follow-up questions. Diagrams (`visuals.py`: flow, cycle, parts or compare) use square numbered markers and the brand palette instead of emoji. The model picks photos by id from the catalogue in `brand.py`, so only curated brand images can appear. If a model call fails the user gets a card with a retry button, not a broken turn.
 
+## Uploaded documents
+
+The main use is KPMG staff uploading a document in GE chat and asking for it to be explained.
+
+- `document.py` picks the file out of the user's turn. GE sends it as `inline_data` (bytes plus a file name) or as `file_data` (a URI).
+  - PDF, text and images go to Gemini as they are.
+  - Word (.docx), PowerPoint (.pptx) and Excel (.xlsx) are turned into text first. This uses the standard library only.
+  - Our own button clicks also arrive as `inline_data`, and they are skipped.
+- `llm.explain_documents` makes one structured call over the document, with no web search. The prompt asks the model to:
+  - follow the document's own structure, one section per major part, each with `doc_ref` (section, page or slide);
+  - keep every key figure, date, obligation and recommendation;
+  - add nothing from outside the document, and put anything unclear in the caveats.
+- The page says "Document explained", shows "From the document: …" under each section, and names the file where web sources would go.
+- An upload with no text, or with "explain this", gets the Expert briefing. "Explain this document like I'm 5" (the ELI5 button) and later questions in the same session reuse the latest uploaded document, which is found in the session history.
+- Each turn logs the kinds of parts it received (`turn parts: [...]`), so the first GE test shows exactly how GE delivers uploads.
+
 ## Layout
 
 ```
@@ -28,6 +44,7 @@ agent/
   visuals.py       section diagrams: flow, cycle, parts, compare (HTML/CSS, brand palette)
   brand.py         palette, logo, and the photo catalogue the model chooses from
   assets/          KPMG logos (SVG) and brand/*.jpg web banners (about 515 KB in total)
+  document.py      uploaded files from the user's turn -> parts Gemini reads (PDF, text, images, Word, PowerPoint, Excel)
   render.py        A2UI cards: explainer, welcome, error
   a2ui.py          v0.9 message helpers + the <a2a_datapart_json> DataPart wrapper
   validate.py      offline check against the pinned GE composite catalog

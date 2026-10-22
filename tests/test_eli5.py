@@ -1,6 +1,8 @@
 import asyncio
+import io
 import json
 import pathlib
+import zipfile
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +10,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, brand, explainer, llm, render, validate, visuals
+from agent import a2ui, agent as eli5, brand, document, explainer, llm, render, validate, visuals
 from agent.schema import Diagram, DiagramNode, Explanation
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
@@ -203,3 +205,89 @@ def test_agent_remembers_question_for_level_requests(fake):
     assert len([p for p in parts if p.inline_data]) == 2
     assert second[0].content.parts[0].text.startswith("**Why is the sky blue?** (ELI5)")
     assert "5-year-old" not in fake.calls[0][0] and "5-year-old" in fake.calls[1][0]
+
+
+# --- uploaded documents ---------------------------------------------------------------
+
+def _office(files: dict[str, str]) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, xml in files.items():
+            z.writestr(name, xml)
+    return buf.getvalue()
+
+
+DOCX_BYTES = _office({"word/document.xml": "<w:document><w:body>"
+                      "<w:p><w:r><w:t>Fees &amp; charges</w:t></w:r></w:p>"
+                      "<w:p><w:r><w:t>The fee is </w:t></w:r><w:r><w:t>2.5%.</w:t></w:r></w:p></w:body></w:document>"})
+
+
+def _upload(name, mime, data, text=None):
+    parts = [genai_types.Part(inline_data=genai_types.Blob(mime_type=mime, data=data, display_name=name))]
+    if text:
+        parts.append(genai_types.Part(text=text))
+    return genai_types.Content(role="user", parts=parts)
+
+
+def test_office_text_reads_word_powerpoint_and_excel():
+    assert document.office_text(DOCX_BYTES, document.DOCX) == "Fees & charges\nThe fee is 2.5%."
+    pptx = _office({f"ppt/slides/slide{i}.xml": f"<p:sld><a:p><a:r><a:t>Slide text {i}</a:t></a:r></a:p></p:sld>"
+                    for i in (2, 10, 1)})
+    assert document.office_text(pptx, document.PPTX) == "[Slide 1]\nSlide text 1\n\n[Slide 2]\nSlide text 2\n\n[Slide 3]\nSlide text 10"
+    xlsx = _office({"xl/sharedStrings.xml": "<sst><si><t>Revenue</t></si></sst>",
+                    "xl/worksheets/sheet1.xml": '<sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42</v></c></row></sheetData>'})
+    assert document.office_text(xlsx, document.XLSX) == "[Sheet 1]\nRevenue | 42"
+
+
+def test_documents_found_in_turn_and_clicks_skipped():
+    content = _upload("policy.pdf", "application/pdf", b"%PDF-1.7 ...", "explain this")
+    content.parts += _click_content({"name": "ask", "context": {"prompt": "x"}}).parts
+    docs = document.from_content(content)
+    assert [d.name for d in docs] == ["policy.pdf"]
+    assert docs[0].part.inline_data.display_name is None  # rebuilt clean for the model
+    word = document.from_content(_upload("terms.docx", "application/octet-stream", DOCX_BYTES))
+    assert "The fee is 2.5%." in word[0].part.text and word[0].name == "terms.docx"
+    assert document.from_content(_upload("x.zip", "application/zip", b"PK..")) == []
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Explain this document like I'm 5", ("Explain this document", "eli5")),
+    ("summarise the attached pdf", ("Explain this document", "expert")),
+    ("what does section 3 say about fees?", ("what does section 3 say about fees?", "expert")),
+])
+def test_parse_document_questions(text, expected):
+    assert eli5.parse(text, None) == expected
+
+
+def test_bare_upload_explains_the_document_without_search(fake):
+    docs = document.from_content(_upload("policy.pdf", "application/pdf", b"%PDF-1.7 ..."))
+    text, messages, remember = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
+    validate.check(messages)
+    assert remember == {"question": "Explain this document", "level": "expert"}
+    contents, config = fake.calls[0]
+    assert not config.tools and config.response_schema is Explanation
+    parts = contents[0].parts
+    assert parts[0].inline_data.mime_type == "application/pdf" and "faithfully and completely" in parts[-1].text
+    page = _components(messages)["frame"]["htmlContent"]
+    assert "Document explained · Expert" in page and "Based on your document" in page and "policy.pdf" in page
+    ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
+    assert ctx["prompt"] == "Explain this document like I'm 5" and ctx["level"] == "eli5"
+
+
+def test_section_shows_where_it_comes_from():
+    sections = [SKY.sections[0].model_copy(update={"doc_ref": "Section 2.1"})]
+    page = explainer.page(SKY.model_copy(update={"sections": sections}), [], Q, documents=["a.pdf"])
+    assert "From the document: Section 2.1" in page
+
+
+def test_follow_up_uses_the_uploaded_document(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        for msg in (_upload("terms.docx", document.DOCX, DOCX_BYTES), _text_content("like I'm 5")):
+            [e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)]
+
+    asyncio.run(run())
+    first, second = (c[0][0].parts for c in fake.calls)
+    assert "The fee is 2.5%." in first[0].text and "The fee is 2.5%." in second[0].text
+    assert "5-year-old" in second[-1].text and not fake.calls[1][1].tools

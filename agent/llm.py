@@ -1,5 +1,8 @@
 """The model call behind every explanation: one level per call (Expert first, ELI5 on request).
 
+With uploaded documents: one structured call over the documents and no web search, so the
+answer stays faithful to them (explain_documents).
+
 Fast path: one Gemini call with Google Search grounding AND a response_schema (supported
 by Gemini 3 and later). If the model rejects that combination, fall back for good to two
 calls: research() with grounding, then write() with the schema.
@@ -50,6 +53,27 @@ Question: {question}
 
 Research notes:
 {notes}"""
+
+DOC_PROMPT = """You explain documents to KPMG professionals. The user uploaded the document(s) above
+and asks: {question}
+
+Explain the document itself, faithfully and completely:
+- Follow the document's own structure: one section per major part, in its order, with doc_ref
+  saying where it comes from (section, page or slide). Cover every major part; do not drop any.
+- Keep the substance: every key figure, date, name, threshold, obligation, recommendation and
+  decision that matters. Quote numbers exactly as the document gives them.
+- Use only what the document says. Do not add outside facts; if you explain a term the document
+  assumes, keep it brief. Put gaps, ambiguities and things the document leaves open in caveats.
+- key_stats must be numbers that appear in the document. Sources are not needed.
+- If the user asks about one part of the document, focus on that part but keep the context.
+""" + _STYLE
+
+# How much to write about a document: as much as its structure needs, not a fixed count.
+DOC_LENGTH = {
+    "expert": "one section per major part of the document (3 to 8), each with 2 or 3 substantial paragraphs; "
+              "3 or 4 key stats; caveats for anything unclear or open; 4 to 8 glossary terms.",
+    "eli5": "2 to 4 short sections covering the document's main points in order; 2 key stats; no caveats; no glossary.",
+}
 
 # None until the first call tells us whether search + response_schema work together.
 _combined_ok: bool | None = None
@@ -140,7 +164,25 @@ async def write(client, question: str, level: str, notes: str) -> Explanation:
     return _parsed(response)
 
 
-async def explain(client, question: str, level: str = DEFAULT_LEVEL) -> tuple[Explanation, list[dict]]:
+async def explain_documents(client, docs: list, question: str, level: str = DEFAULT_LEVEL) -> Explanation:
+    """One structured call over the uploaded documents, without web search, so the answer
+    stays grounded in the document."""
+    prompt = DOC_PROMPT.format(**{**_prompt_args(question, level), "length": DOC_LENGTH[level]})
+    response = await client.aio.models.generate_content(
+        model=model_name(),
+        contents=[genai_types.Content(role="user", parts=[*(d.part for d in docs), genai_types.Part(text=prompt)])],
+        config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json", response_schema=Explanation,
+            thinking_config=_thinking(), temperature=0.2,
+        ),
+    )
+    return _parsed(response)
+
+
+async def explain(client, question: str, level: str = DEFAULT_LEVEL, docs: list | None = None) -> tuple[Explanation, list[dict]]:
+    """The explanation and its web sources. With documents, the answer comes from them only."""
+    if docs:
+        return await explain_documents(client, docs, question, level), []
     global _combined_ok
     if _combined_ok is not False:
         try:

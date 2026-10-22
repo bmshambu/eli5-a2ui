@@ -6,6 +6,8 @@ explainer card (Canvas + IFrameSrcdoc). New questions get a detailed Expert brie
 simpler ELI5 version is made only when asked (the follow-up button, "like I'm 5"). The last
 question and level are kept in session state so "like I'm 5" alone works, and "go deeper"
 goes back to Expert.
+Documents: when the user uploads a file in GE chat, the page explains that document (no web
+search), following its structure. Later turns in the session keep using the latest document.
 Greetings and empty turns get the welcome card. AGENT_MODE=probe serves the step 0 probe.
 """
 import logging
@@ -18,13 +20,14 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types as genai_types
 
-from . import a2ui, explainer, llm, render, validate
+from . import a2ui, document, explainer, llm, render, validate
 from .schema import DEFAULT_LEVEL, LEVELS
 
 log = logging.getLogger(__name__)
 
 MAX_QUESTION_CHARS = 500
 STATE_KEY = "eli5_last"  # {"question": str, "level": str}
+DOC_QUESTION = explainer.DOC_QUESTION
 
 _GREETING = re.compile(r"^(hi|hello|hey|help|start|menu|what can you do\??|who are you\??)[!. ]*$", re.I)
 _LEVEL = re.compile(
@@ -36,6 +39,8 @@ _LEVEL = re.compile(
 # Only Expert and ELI5 exist; "like I'm 10/15" is read as the simple version.
 _WORDS = {"5": "eli5", "five": "eli5", "10": "eli5", "ten": "eli5", "15": "eli5", "fifteen": "eli5", "expert": "expert"}
 _DEEPER = re.compile(r"^(go\s+deeper|deeper|more\s+detail|tell\s+me\s+more|explain\s+more)[!. ]*$", re.I)
+_DOC = re.compile(r"^\W*(?:(?:please|can\s+you|could\s+you)\s+)?(?:(?:explain|summari[sz]e|describe)\s+)?"
+                  r"(?:the\s+|this\s+|my\s+|attached\s+|uploaded\s+)*(?:document|doc|file|pdf|deck|report|paper|attachment)s?\W*$", re.I)
 _FILLER = re.compile(r"^\W*(?:(?:please|can\s+you|could\s+you)\s+)?(?:explain|describe)?\s*(?:it|this|that)?\W*$", re.I)
 
 # Swapped in tests for a fake client; built lazily so the agent pickles for Agent Engine.
@@ -68,14 +73,14 @@ def parse(text: str, last: dict | None) -> tuple[str, str] | None:
         return last["question"], DEFAULT_LEVEL
     m = _LEVEL.search(text)
     if not m:
-        return text[:MAX_QUESTION_CHARS], DEFAULT_LEVEL
+        return (DOC_QUESTION if _DOC.match(text) else text[:MAX_QUESTION_CHARS]), DEFAULT_LEVEL
     level = _WORDS[next(g for g in m.groups() if g).lower()]
     topic = (text[:m.start()] + " " + text[m.end():]).strip()
     topic = re.sub(r"^\W*(?:(?:please|can\s+you|could\s+you)\s+)?(?:explain|describe)\s*(?:it|this|that)?\s*[:,\-]?\s*", "", topic, flags=re.I)
     topic = topic.strip(" :,-")
     if not topic or _FILLER.match(topic):
         return (last["question"], level) if last else None
-    return topic[:MAX_QUESTION_CHARS], level
+    return (DOC_QUESTION if _DOC.match(topic) else topic[:MAX_QUESTION_CHARS]), level
 
 
 def question_for(content, last: dict | None = None) -> tuple[str, str] | None:
@@ -91,15 +96,19 @@ def question_for(content, last: dict | None = None) -> tuple[str, str] | None:
     return parse(ctx.get("prompt") or "", last)
 
 
-async def respond(content, last: dict | None = None) -> tuple[str, list[dict], dict | None]:
-    """(one-line reply, A2UI messages, new session memory or None) for this turn."""
+async def respond(content, last: dict | None = None, docs: list | None = None) -> tuple[str, list[dict], dict | None]:
+    """(one-line reply, A2UI messages, new session memory or None) for this turn. `docs` are the
+    documents to explain from (this turn's upload, or the latest one in the session)."""
     asked = question_for(content, last)
+    if docs and asked is None:
+        # A bare upload (or "hi", or "like I'm 5" with nothing asked yet) means: explain the document.
+        asked = parse(_user_text(content), {"question": DOC_QUESTION, "level": DEFAULT_LEVEL}) or (DOC_QUESTION, DEFAULT_LEVEL)
     if asked is None:
-        return "Ask me anything and I'll give you a detailed briefing. Ask for ELI5 any time for the simple version.", render.welcome_card(), None
+        return "Ask me anything, or upload a document, and I'll give you a detailed briefing. Ask for ELI5 any time for the simple version.", render.welcome_card(), None
     question, level = asked
     try:
-        expl, sources = await llm.explain(_get_client(), question, level)
-        messages = render.explanation_card(expl, sources, question, level)
+        expl, sources = await llm.explain(_get_client(), question, level, docs)
+        messages = render.explanation_card(expl, sources, question, level, [d.name for d in docs or []])
         validate.check(messages)
         return (f"**{expl.title}** ({LEVELS[level][0]}): {expl.one_liner}", messages,
                 {"question": question, "level": level})
@@ -110,7 +119,12 @@ async def respond(content, last: dict | None = None) -> tuple[str, list[dict], d
 
 class Eli5Agent(BaseAgent):
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        text, messages, remember = await respond(ctx.user_content, ctx.session.state.get(STATE_KEY))
+        log.info("turn parts: %s", document.describe(ctx.user_content))
+        uploaded = document.from_content(ctx.user_content)
+        # A new upload starts a new topic, so "like I'm 5" with it means this document.
+        last = None if uploaded else ctx.session.state.get(STATE_KEY)
+        docs = uploaded or document.latest(ctx.session.events)
+        text, messages, remember = await respond(ctx.user_content, last, docs)
         validate.check(messages)
         parts = [genai_types.Part(text=text)] + [a2ui.to_genai_part(m) for m in messages]
         yield Event(

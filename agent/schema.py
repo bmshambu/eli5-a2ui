@@ -56,6 +56,8 @@ class Section(BaseModel):
     diagram: Optional[Diagram] = Field(
         default=None, description="A diagram where a picture explains this section better than words.")
     photo: Optional[PhotoId] = Field(default=None, description="A brand photo id that fits this section, or none.")
+    doc_ref: Optional[str] = Field(
+        default=None, description="When explaining a document: where this comes from in it, e.g. 'Section 3' or 'Slides 4-6'.")
 
 
 class Term(BaseModel):
