@@ -14,6 +14,7 @@ sends what the user would type.
 """
 import html
 import json
+import re
 
 from . import brand, visuals
 from .schema import LEVELS, Explanation
@@ -81,10 +82,25 @@ ol.sources{margin:0;padding-left:22px;font-size:14px;color:var(--muted)}ol.sourc
 button[disabled]{opacity:.55;cursor:default}
 button:focus-visible,a:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 .legal{margin-top:26px;padding-top:8px;border-top:1px solid var(--line);font-size:14px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.save{position:absolute;z-index:2;top:16px;right:18px;font:inherit;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,.12);
+border:1px solid rgba(255,255,255,.6);padding:6px 12px;cursor:pointer}.save:hover{background:rgba(255,255,255,.25)}
+.note{font-size:14px;background:#ACEAFF;color:#0C233C;padding:8px 22px;margin:0}
+@page{size:A4;margin:12mm}
+@media print{:root{--bg:#fff;--ink:#00338D;--brand:#00338D;--muted:#666666;--line:#E5E5E5;--accent:#1E49E2;--tint5:#F3F6FF;--tint10:#E9EDFC}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}
+.pop{animation:none!important}.save,.note,.next,.next-label{display:none!important}
+.kpi,.node,figure,.points,.analogy,tr,.toc a{break-inside:avoid}h2,.label{break-after:avoid}.banner{max-height:60mm}}
 """
 
 # Every [data-q] button asks its question once; then all of them lock so one click = one turn.
+# "Save as PDF" prints the page (the browser's print dialog has Save as PDF). GE's sandbox may
+# block print() silently; print() then returns at once, so the page is downloaded as HTML instead.
 _SCRIPT = """
+var save=document.getElementById('save');if(save){save.addEventListener('click',function(){
+var t=Date.now();try{window.print();}catch(e){}if(Date.now()-t>400)return;
+var a=document.createElement('a');a.download=FILE;
+a.href=URL.createObjectURL(new Blob(['<!DOCTYPE html>'+document.documentElement.outerHTML],{type:'text/html'}));
+document.body.appendChild(a);a.click();a.remove();var n=document.getElementById('note');n.hidden=false;});}
 document.querySelectorAll('[data-q]').forEach(function(b){b.addEventListener('click',function(){
 window.parent.postMessage({type:'a2ui_action',action:ACTION,data:JSON.parse(b.dataset.ctx)},'*');
 document.querySelectorAll('[data-q]').forEach(function(x){x.disabled=true;});b.textContent='Asked: '+b.dataset.q;});});
@@ -110,6 +126,10 @@ def _ask(cls: str, label: str, prompt: str, **context) -> str:
     return f'<button class="{cls}" data-q="{_esc(prompt)}" data-ctx="{_esc(ctx)}">{_esc(label)}</button>'
 
 
+def _filename(title: str) -> str:
+    return (re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-")[:60] or "explainer") + ".html"
+
+
 def _logo() -> str:
     return brand.logo_svg("white").replace("<svg", '<svg class="logo" role="img" aria-label="KPMG"', 1)
 
@@ -118,7 +138,8 @@ def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     chips = "".join(f'<span class="chip-tag">{_esc(t)}</span>' for t in e.tags[:3])
     return (
         f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
-        f'<div class="shade"></div><div class="in">{_logo()}'
+        '<div class="shade"></div><button class="save" id="save" type="button">Save as PDF</button>'
+        f'<div class="in">{_logo()}'
         f'<div class="eyebrow">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1>{_esc(e.title)}</h1>'
         f'<p class="lede">{_esc(e.one_liner)}</p>'
         f'<div class="chips">{chips}<span class="conf {e.confidence}">{e.confidence.capitalize()} confidence</span></div>'
@@ -186,11 +207,13 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}</style></head><body>"
-        f'{_cover(e, level, bool(documents))}<main class="wrap">{_kpis(e)}'
+        f'{_cover(e, level, bool(documents))}'
+        '<p class="note" id="note" hidden>This panel does not allow printing, so the page was sent as a download instead '
+        f'(if your browser allowed it). Open the downloaded file, choose Print, then Save as PDF.</p><main class="wrap">{_kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'
         f'{_bullets(e.takeaways)}{contents}{sections}{caveats}{glossary}{sources_html}'
-        f'<div class="label">Keep going</div><div class="next">{switch}{chips}</div>'
+        f'<div class="label next-label">Keep going</div><div class="next">{switch}{chips}</div>'
         '<footer class="legal"><span>© 2026 KPMG International Cooperative ("KPMG International"), a Swiss entity. '
         'All rights reserved.</span><span>KPMG. Make the Difference.</span></footer>'
-        f"</main><script>var ACTION={json.dumps(ASK_ACTION)};{_SCRIPT}</script></body></html>"
+        f"</main><script>var ACTION={json.dumps(ASK_ACTION)},FILE={json.dumps(_filename(e.title))};{_SCRIPT}</script></body></html>"
     )

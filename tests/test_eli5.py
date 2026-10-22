@@ -291,3 +291,10 @@ def test_follow_up_uses_the_uploaded_document(fake):
     first, second = (c[0][0].parts for c in fake.calls)
     assert "The fee is 2.5%." in first[0].text and "The fee is 2.5%." in second[0].text
     assert "5-year-old" in second[-1].text and not fake.calls[1][1].tools
+
+
+def test_page_has_save_as_pdf_with_print_layout():
+    page = explainer.page(SKY, [], Q)
+    assert 'id="save"' in page and "window.print()" in page and "@media print" in page
+    assert 'FILE="Why-is-the-sky-blue.html"' in page
+    assert page.count("data-q=") == 4  # the save button is not an ask
