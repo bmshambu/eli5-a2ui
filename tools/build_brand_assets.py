@@ -20,12 +20,12 @@ OUT = ROOT / "agent" / "assets" / "brand"
 W, H = 800, 320
 
 
-def crop(im: Image.Image, focus_x: float) -> Image.Image:
-    """Scale to cover W x H, then crop around focus_x (0 = left edge, 1 = right edge)."""
+def crop(im: Image.Image, focus_x: float, focus_y: float = 0.5) -> Image.Image:
+    """Scale to cover W x H, then crop around focus_x / focus_y (0 = left/top edge, 1 = right/bottom)."""
     scale = max(W / im.width, H / im.height)
     im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
     left = round((im.width - W) * focus_x)
-    top = (im.height - H) // 2
+    top = round((im.height - H) * focus_y)
     return im.crop((left, top, left + W, top + H))
 
 
@@ -33,7 +33,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for p in PHOTOS:
         im = Image.open(SRC / p.source).convert("RGB")
-        crop(im, p.focus_x).save(OUT / f"{p.id}.jpg", quality=72, optimize=True, progressive=True)
+        crop(im, p.focus_x, p.focus_y).save(OUT / f"{p.id}.jpg", quality=72, optimize=True, progressive=True)
     total = sum(f.stat().st_size for f in OUT.glob("*.jpg"))
     print(f"{len(PHOTOS)} photos, {total // 1024} KB")
 
