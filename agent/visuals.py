@@ -2,7 +2,7 @@
 
 HTML rather than one fixed SVG so the layout reflows with the panel: flow steps sit in a row
 and stack on a narrow panel, parts and compare use a responsive grid. Only the cycle ring is
-SVG. Each node gets a colour from a five-colour palette (light and dark) and an emoji; cards
+SVG. Each node gets a colour from the KPMG palette (light and dark) and an emoji; cards
 appear one after another unless the viewer prefers reduced motion.
 """
 import html
@@ -11,15 +11,15 @@ import math
 from .schema import Diagram, DiagramNode
 
 CSS = """
-:root{--c0:#1a73e8;--c0t:#e8f0fe;--c1:#188038;--c1t:#e6f4ea;--c2:#e37400;--c2t:#fef0e0;--c3:#9334e6;--c3t:#f3e8fd;--c4:#d01884;--c4t:#fde7f3}
-@media (prefers-color-scheme:dark){:root{--c0:#8ab4f8;--c0t:#1f2b40;--c1:#81c995;--c1t:#1c3326;--c2:#fcad70;--c2t:#3b2a1a;--c3:#c58af9;--c3t:#2f2240;--c4:#ff8bcb;--c4t:#3d1f30}}
+:root{--c0:#00338D;--c0t:#E6EBF4;--c1:#0091DA;--c1t:#E5F4FB;--c2:#483698;--c2t:#EDEBF5;--c3:#00A3A1;--c3t:#E5F6F6;--c4:#6D2077;--c4t:#F0E9F1}
+@media (prefers-color-scheme:dark){:root{--c0:#5C8BE0;--c0t:#1c2742;--c1:#0091DA;--c1t:#16303f;--c2:#8E7FD6;--c2t:#272241;--c3:#00A3A1;--c3t:#123533;--c4:#B05AB9;--c4t:#2d1d31}}
 .viz{margin:4px 0 8px}
 .node{--c:var(--c0);--ct:var(--c0t);background:var(--ct);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);
-border-top:4px solid var(--c);border-radius:14px;padding:12px;min-width:0;position:relative}
+border-top:4px solid var(--c);border-radius:6px;padding:12px;min-width:0;position:relative}
 .node .emo{font-size:30px;line-height:1;display:block;margin-bottom:6px}
-.node b{display:block;font-size:14px;line-height:1.3;color:var(--ink)}
-.node span.n{display:block;font-size:12.5px;line-height:1.4;color:var(--muted);margin-top:2px}
-.num{position:absolute;top:8px;right:10px;font-size:12px;font-weight:700;color:var(--c)}
+.node b{display:block;font-size:15px;line-height:1.3;color:var(--ink)}
+.node span.n{display:block;font-size:14px;line-height:1.4;color:var(--muted);margin-top:2px}
+.num{position:absolute;top:8px;right:10px;font-size:14px;font-weight:700;color:var(--c)}
 .k0{--c:var(--c0);--ct:var(--c0t)}.k1{--c:var(--c1);--ct:var(--c1t)}.k2{--c:var(--c2);--ct:var(--c2t)}.k3{--c:var(--c3);--ct:var(--c3t)}.k4{--c:var(--c4);--ct:var(--c4t)}
 .pop{animation:pop .45s ease-out both;animation-delay:calc(var(--i,0) * 140ms)}
 @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.97)}}
@@ -28,15 +28,15 @@ border-top:4px solid var(--c);border-radius:14px;padding:12px;min-width:0;positi
 .flow .node{flex:1 1 0}
 .arrow{align-self:center;color:var(--muted);font-size:20px;flex:0 0 auto}
 @media (max-width:560px){.flow{flex-direction:column}.arrow{transform:rotate(90deg);margin:-2px auto}}
-.parts .hub{margin:0 auto;max-width:280px;text-align:center;border-radius:16px;padding:12px 16px;font-weight:700;
-background:linear-gradient(135deg,var(--c0t),var(--c3t));border:1px solid var(--line)}
+.parts .hub{margin:0 auto;max-width:280px;text-align:center;border-radius:6px;padding:12px 16px;font-weight:700;
+background:var(--c0);color:#fff}
 .parts .hub .emo{font-size:34px;display:block}
 .parts .wire{height:18px;border-left:2px solid var(--line);width:0;margin:0 auto}
 .parts .grid{display:grid;grid-template-columns:repeat(var(--cols,3),1fr);gap:10px;border-top:2px solid var(--line);padding-top:12px}
 .compare{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start}
 .compare .side{display:flex;flex-direction:column;gap:8px}
-.compare h3{margin:0;font-size:15px;text-align:center;color:var(--c);padding:6px;border-radius:10px;background:var(--ct)}
-.compare .vs{align-self:center;font-weight:800;color:var(--muted);font-size:13px;border:1px solid var(--line);border-radius:50%;width:34px;height:34px;display:grid;place-items:center}
+.compare h3{margin:0;font-size:16px;text-align:center;color:#fff;padding:8px;border-radius:6px;background:var(--c)}
+.compare .vs{align-self:center;font-weight:700;color:var(--brand);font-size:14px;border:2px solid var(--brand);border-radius:50%;width:38px;height:38px;display:grid;place-items:center}
 @media (max-width:520px){.parts .grid{grid-template-columns:1fr 1fr}.compare{grid-template-columns:1fr}.compare .vs{margin:0 auto}}
 .cycle{position:relative;width:100%;max-width:380px;aspect-ratio:1;margin:0 auto}
 .cycle svg{position:absolute;inset:0;width:100%;height:100%}
@@ -46,8 +46,8 @@ background:linear-gradient(135deg,var(--c0t),var(--c3t));border:1px solid var(--
 .cycle .node{position:absolute;width:30%;transform:translate(-50%,-50%);text-align:center;padding:8px;animation-name:fade}
 @keyframes fade{from{opacity:0}}
 .cycle .node .emo{font-size:26px;margin-bottom:2px}
-.cycle .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30%;text-align:center;font-weight:700;font-size:14px;color:var(--muted)}
-.legend{margin:10px 0 0;padding-left:20px;font-size:13px;color:var(--muted)}.legend b{color:var(--ink)}
+.cycle .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30%;text-align:center;font-weight:700;font-size:15px;color:var(--brand)}
+.legend{margin:10px 0 0;padding-left:20px;font-size:14px;color:var(--muted)}.legend b{color:var(--ink)}
 """
 
 
@@ -95,7 +95,7 @@ def _compare(d: Diagram) -> str:
         sides = [d.nodes[:half], d.nodes[half:]]
     cols = []
     for c, (title, nodes) in enumerate(zip((d.left_title or "A", d.right_title or "B"), sides)):
-        k = 0 if c == 0 else 2  # blue vs orange
+        k = 0 if c == 0 else 3  # KPMG Blue vs green
         items = "".join(_node(n, i * 2 + c, color=k) for i, n in enumerate(nodes))
         cols.append(f'<div class="side k{k}"><h3>{_e(title)}</h3>{items}</div>')
     return f'<div class="viz compare">{cols[0]}<span class="vs">vs</span>{cols[1]}</div>'
