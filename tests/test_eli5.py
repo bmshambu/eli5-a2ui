@@ -10,7 +10,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, render, validate, visuals
+from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, pdf, render, validate, visuals
 from agent.schema import Chart, Diagram, DiagramNode, Explanation, Series, Stat
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
@@ -70,7 +70,7 @@ def test_explanation_card_validates_and_fits():
     messages = render.explanation_card(SKY, SOURCES, Q)
     validate.check(messages)
     comps = _components(messages)
-    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "sources"]
+    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf", "sources"]
     assert comps["root"]["cardTitle"].endswith("Expert")
     assert a2ui.message_bytes(messages[1]) < 400_000  # cover + 2 banner photos inline
 
@@ -98,7 +98,8 @@ def test_expert_page_is_branded_and_offers_eli5():
     assert page.count("data-q=") == 1 + 3  # ELI5, follow-ups
     assert "ELI10" not in page and "Go deeper" not in page and "a2ui_action" in page
     ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
-    assert ctx == {"prompt": "Explain it like I'm 5: " + Q, "level": "eli5", "question": Q}
+    assert ctx == {"prompt": "Explain it in a simpler way: " + Q, "level": "eli5", "question": Q}
+    assert "ELI5" not in page and "like I'm 5" not in page
 
 
 def test_eli5_page_offers_expert():
@@ -168,6 +169,13 @@ LAST = {"question": Q, "level": "expert"}
     ("  ", None, None),
     (Q, None, (Q, "expert")),
     ("Explain it like I'm 5: " + Q, None, (Q, "eli5")),
+    ("Explain it in a simpler way: " + Q, None, (Q, "eli5")),
+    ("explain black holes in simple terms", None, ("black holes", "eli5")),
+    ("explain inflation in plain English", None, ("inflation", "eli5")),
+    ("simpler", LAST, (Q, "eli5")),
+    ("make it simpler", LAST, (Q, "eli5")),
+    ("simpler", None, None),
+    ("What is simple interest?", None, ("What is simple interest?", "expert")),
     ("explain black holes like I am five years old", None, ("black holes", "eli5")),
     ("ELI expert: how do vaccines work?", None, ("how do vaccines work?", "expert")),
     ("like im 5", LAST, (Q, "eli5")),
@@ -209,9 +217,9 @@ def test_falls_back_to_two_calls_when_model_cannot_combine(monkeypatch):
 
 def test_respond_failure_gives_retry_card(monkeypatch):
     _use(monkeypatch, FakeModels(fail=True))
-    text, messages, remember = asyncio.run(eli5.respond(_text_content("Why?")))
+    text, messages, remember, page, files = asyncio.run(eli5.respond(_text_content("Why?")))
     validate.check(messages)
-    assert remember is None
+    assert remember is None and page is None
     assert eli5.parse(_components(messages)["retry"]["action"]["event"]["context"]["prompt"], None) == ("Why?", "expert")
 
 
@@ -220,7 +228,7 @@ def test_agent_remembers_question_for_level_requests(fake):
         runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
         session = await runner.session_service.create_session(app_name="eli5", user_id="u")
         out = []
-        for msg in (_text_content(Q), _text_content("like I'm 5")):
+        for msg in (_text_content(Q), _text_content("simpler")):
             out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
         return out
 
@@ -228,8 +236,8 @@ def test_agent_remembers_question_for_level_requests(fake):
     parts = [p for e in first if e.content for p in e.content.parts]
     assert parts[0].text.startswith("**Why is the sky blue?** (Expert)")
     assert len([p for p in parts if p.inline_data]) == 2
-    assert second[0].content.parts[0].text.startswith("**Why is the sky blue?** (ELI5)")
-    assert "5-year-old" not in fake.calls[0][0] and "5-year-old" in fake.calls[1][0]
+    assert second[0].content.parts[0].text.startswith("**Why is the sky blue?** (Simpler)")
+    assert "new to the topic" not in fake.calls[0][0] and "new to the topic" in fake.calls[1][0]
 
 
 # --- uploaded documents ---------------------------------------------------------------
@@ -277,6 +285,7 @@ def test_documents_found_in_turn_and_clicks_skipped():
 
 @pytest.mark.parametrize("text,expected", [
     ("Explain this document like I'm 5", ("Explain this document", "eli5")),
+    ("Explain this document in a simpler way", ("Explain this document", "eli5")),
     ("summarise the attached pdf", ("Explain this document", "expert")),
     ("what does section 3 say about fees?", ("what does section 3 say about fees?", "expert")),
 ])
@@ -286,7 +295,7 @@ def test_parse_document_questions(text, expected):
 
 def test_bare_upload_explains_the_document_without_search(fake):
     docs = document.from_content(_upload("policy.pdf", "application/pdf", b"%PDF-1.7 ..."))
-    text, messages, remember = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
+    text, messages, remember, page, files = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
     validate.check(messages)
     assert remember == {"question": "Explain this document", "level": "expert"}
     contents, config = fake.calls[0]
@@ -296,7 +305,7 @@ def test_bare_upload_explains_the_document_without_search(fake):
     page = _components(messages)["frame"]["htmlContent"]
     assert "Document explained · Expert" in page and "Based on your document" in page and "policy.pdf" in page
     ctx = json.loads(explainer.html.unescape(page.split('data-ctx="')[1].split('"')[0]))
-    assert ctx["prompt"] == "Explain this document like I'm 5" and ctx["level"] == "eli5"
+    assert ctx["prompt"] == "Explain this document in a simpler way" and ctx["level"] == "eli5"
 
 
 def test_section_shows_where_it_comes_from():
@@ -309,20 +318,77 @@ def test_follow_up_uses_the_uploaded_document(fake):
     async def run():
         runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
         session = await runner.session_service.create_session(app_name="eli5", user_id="u")
-        for msg in (_upload("terms.docx", document.DOCX, DOCX_BYTES), _text_content("like I'm 5")):
+        for msg in (_upload("terms.docx", document.DOCX, DOCX_BYTES), _text_content("simpler")):
             [e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)]
 
     asyncio.run(run())
     first, second = (c[0][0].parts for c in fake.calls)
     assert "The fee is 2.5%." in first[0].text and "The fee is 2.5%." in second[0].text
-    assert "5-year-old" in second[-1].text and not fake.calls[1][1].tools
+    assert "new to the topic" in second[-1].text and not fake.calls[1][1].tools
 
 
-def test_page_has_save_as_pdf_with_print_layout():
+def test_page_no_longer_prints_itself():
     page = explainer.page(SKY, [], Q)
-    assert 'id="save"' in page and "window.print()" in page and "@media print" in page
-    assert 'FILE="Why-is-the-sky-blue.html"' in page
-    assert page.count("data-q=") == 4  # the save button is not an ask
+    assert "window.print" not in page and "@media print" not in page and "Save as PDF" not in page
+
+
+def test_card_has_native_download_pdf_button():
+    comps = _components(render.explanation_card(SKY, SOURCES, Q, "eli5"))
+    assert comps["pdf"]["label"] == "Download PDF" and "pdf" in comps["root"]["children"]
+    assert comps["pdf"]["action"]["event"] == {"name": "pdf", "context": {"question": Q, "level": "eli5"}}
+    assert comps["root"]["cardTitle"].endswith("· Simpler")
+
+
+def _all_kinds():
+    """SKY with every chart and several diagram types, to exercise the PDF layouts."""
+    sections = list(SKY.sections)
+    kinds = list(CHARTS.values()) + [None]
+    nodes = [DiagramNode(label=f"Node {i}", note=f"note {i}", value=str(i), side="left" if i % 2 else "right") for i in range(4)]
+    for i, s in enumerate(sections):
+        sections[i] = s.model_copy(update={"chart": kinds[i % len(kinds)],
+                                           "diagram": Diagram(type=DIAGRAM_TYPES[i * 3 % 11], caption="c", nodes=nodes,
+                                                              left_title="L", right_title="R", center="Hub")})
+    return SKY.model_copy(update={"sections": sections})
+
+
+def test_pdf_is_branded_and_complete():
+    data = pdf.build(_all_kinds(), SOURCES, "expert", ["policy.pdf"])
+    assert data.startswith(b"%PDF") and 20_000 < len(data) < 600_000  # well under GE's ~1 MB part limit
+    assert b"LiberationSans" in data  # embedded font, so symbols like the lambda in 1/x4 render
+    assert pdf.filename("Why is the sky blue?") == "Why-is-the-sky-blue.pdf"
+
+
+def _pdf_click(question=Q, level="expert"):
+    return _click_content({"name": "pdf", "context": {"question": question, "level": level}})
+
+
+def test_download_pdf_reuses_the_explanation_in_session(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        out = []
+        for msg in (_text_content(Q), _pdf_click()):
+            out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
+        return out
+
+    _, second = asyncio.run(run())
+    parts = second[0].content.parts
+    assert parts[0].text.startswith("Here is **Why is the sky blue?** (Expert) as a PDF")
+    blob = parts[1].inline_data
+    assert blob.mime_type == "application/pdf" and blob.display_name == "Why-is-the-sky-blue.pdf" and blob.data.startswith(b"%PDF")
+    assert len(fake.calls) == 1  # no second model call: rebuilt from session state
+
+
+def test_download_pdf_for_an_old_card_explains_again(fake):
+    reply = asyncio.run(eli5.respond(_pdf_click("Why is grass green?", "eli5"), None, None, []))
+    assert reply.files[0].inline_data.mime_type == "application/pdf" and len(fake.calls) == 1
+    assert "new to the topic" in fake.calls[0][0]
+
+
+def test_download_pdf_failure_is_a_message(monkeypatch):
+    _use(monkeypatch, FakeModels(fail=True))
+    reply = asyncio.run(eli5.respond(_pdf_click(), None, None, []))
+    assert reply.text.startswith("Sorry, I couldn't make the PDF") and not reply.files
 
 
 CHARTS = {

@@ -1,7 +1,8 @@
 """The structured explanation the model returns, and the page renders.
 
-Expert is the default answer: a detailed, multi-section briefing. "Explain it like I'm 5" is
-offered as a follow-up and uses the same shape with fewer, simpler sections.
+Expert is the default answer: a detailed, multi-section briefing. "Explain it in a simpler way"
+is offered as a follow-up and uses the same shape with fewer, simpler sections. (The key for
+that level is still "eli5"; users never see it.)
 Photos are chosen by id from the brand catalogue (agent/brand.py), so the schema only allows
 those ids.
 """
@@ -16,8 +17,9 @@ LEVELS = {
     "expert": ("Expert", "Explain it like I'm an expert",
                "a specialist reader. Precise terms, mechanisms, numbers, trade-offs, caveats and what is still open.",
                "4 or 5 sections, each with 2 or 3 substantial paragraphs; 3 or 4 key stats; 2 to 4 caveats; 4 to 6 glossary terms."),
-    "eli5": ("ELI5", "Explain it like I'm 5",
-             "a curious 5-year-old. Short words, concrete everyday images, no jargon at all.",
+    "eli5": ("Simpler", "Explain it in a simpler way",
+             "a busy professional who is new to the topic. Plain English, short sentences, concrete everyday "
+             "examples, no jargon (if a term is unavoidable, say what it means in a few words).",
              "2 or 3 short sections of 1 or 2 short paragraphs; 2 key stats; no caveats; no glossary."),
 }
 LEVEL_KEYS = tuple(LEVELS)
