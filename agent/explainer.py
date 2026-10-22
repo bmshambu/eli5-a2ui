@@ -116,8 +116,12 @@ transform:translateX(-100%);animation:sweep 2.4s .5s ease-in-out both}
 .line svg{animation:wipe 1.3s ease-out both}@keyframes wipe{from{clip-path:inset(0 100% 0 0)}}
 .kpi{transition:transform .2s}.kpi:hover{transform:translateY(-3px)}
 .js .cover:not(.go) .rv0,.js .cover:not(.go) .sweep{animation-play-state:paused}
-@media (prefers-reduced-motion:reduce){.cover .photo,.cover .frames i,.donut circle,.line svg{animation:none!important}
-.cover .sweep{display:none}.rv0{animation-name:fadein}.js .rv{transform:none;transition:opacity .8s ease-out}}
+@media (prefers-reduced-motion:reduce){html:not(.motion-on) .cover .photo,html:not(.motion-on) .cover .frames i,
+html:not(.motion-on) .donut circle,html:not(.motion-on) .line svg{animation:none!important}
+html:not(.motion-on) .cover .sweep{display:none}html:not(.motion-on) .rv0{animation-name:fadein}
+html:not(.motion-on) .js .rv,html.js:not(.motion-on) .rv{transform:none;transition:opacity .8s ease-out}}
+.motion{position:absolute;z-index:3;top:16px;right:18px;font:inherit;font-size:14px;font-weight:700;color:#fff;cursor:pointer;
+background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.6);padding:6px 12px}.motion:hover{background:rgba(255,255,255,.25)}
 @keyframes fadein{from{opacity:0}}
 """
 
@@ -179,6 +183,14 @@ var cover=document.querySelector('.cover');
 function go(){if(!cover||cover.classList.contains('go'))return;cover.classList.add('go');
 setTimeout(function(){document.querySelectorAll('.cstats .v').forEach(count);},700);}
 setTimeout(go,2500);
+// Windows "Animation effects" off makes the browser ask for reduced motion, so the cover stays
+// still by default; this button lets the viewer turn the motion poster on anyway.
+var mb=document.getElementById('motion');
+if(mb&&window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){mb.hidden=false;
+mb.addEventListener('click',function(){var on=document.documentElement.classList.toggle('motion-on');
+mb.textContent=on?'Stop motion':'Play motion';if(on&&cover){cover.classList.remove('go');void cover.offsetWidth;
+cover.querySelectorAll('.rv0,.sweep').forEach(function(x){x.style.animation='none';void x.offsetWidth;x.style.animation='';});
+cover.classList.add('go');}});}
 if(!('IntersectionObserver' in window)){go();items.forEach(show);}else{
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;
 if(e.target===cover)go();else show(e.target);io.unobserve(e.target);});},{threshold:.15});
@@ -234,6 +246,7 @@ def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     return (
         f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
         '<div class="shade"></div><div class="frames" aria-hidden="true"><i></i><i></i><i></i></div><div class="sweep"></div>'
+        '<button class="motion" id="motion" type="button" hidden>Play motion</button>'
         f'<div class="in"><div class="rv0">{_logo()}</div>'
         f'<div class="eyebrow rv0" style="--d:1">{"Document explained" if from_document else "Explained"} · {LEVELS[level][0]}</div><h1 class="rv0" style="--d:2">{_title(e.title)}</h1>'
         f'<p class="lede rv0" style="--d:3">{_esc(e.one_liner)}</p>{_cover_stats(e) if finance else ""}'
