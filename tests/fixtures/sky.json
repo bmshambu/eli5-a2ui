@@ -1,15 +1,112 @@
 {
   "title": "Why is the sky blue?",
-  "one_liner": "Air bounces blue sunlight around much more than red, so blue reaches your eyes from all over the sky.",
-  "tags": ["Physics", "Light"],
+  "one_liner": "Air molecules scatter short blue wavelengths of sunlight far more strongly than red ones, so blue light reaches us from every direction of the sky.",
+  "tags": ["Physics", "Optics", "Atmosphere"],
   "confidence": "high",
-  "analogy": "Sunlight is like a bag of coloured marbles, and the air bounces the blue ones all over the place.",
-  "body": "Sunlight looks white, but it is really all the colours mixed together. When it comes into the sky, it bumps into tiny bits of air. The blue light bounces around the most. So when you look up, blue light comes at you from everywhere.",
-  "key_fact": {"value": "4x", "label": "Blue light bounces about 4 times more than red"},
-  "diagram": {"type": "flow", "caption": "Sunlight comes in, the air bounces the blue around, and blue reaches your eyes from every direction.",
-              "nodes": [{"emoji": "☀️", "label": "White sunlight", "note": "All the colours mixed together"},
-                        {"emoji": "💨", "label": "Tiny bits of air", "note": "Much smaller than you can see"},
-                        {"emoji": "🔵", "label": "Blue bounces most", "note": "It scatters all over the sky"},
-                        {"emoji": "👀", "label": "Blue everywhere", "note": "Your eyes see blue wherever you look"}]},
-  "follow_ups": ["Why are sunsets red and orange?", "Why isn't the sky purple?", "What colour is the sky on Mars?"]
+  "hero_photo": "frames-in-clouds",
+  "summary": "Sunlight contains every visible wavelength. As it crosses the atmosphere, nitrogen and oxygen molecules scatter part of it in all directions, and the strength of that Rayleigh scattering rises with the inverse fourth power of wavelength. Blue light near 450 nm is therefore scattered about four times more than red light near 700 nm. We see the scattered light as a blue dome; violet is scattered even more but the solar spectrum, ozone absorption and the eye's sensitivity tip the balance to blue.",
+  "analogy": "It is like a pinball table where small, fast balls bounce off every pin while big, slow ones roll straight through: blue light is the small ball.",
+  "takeaways": [
+    "Rayleigh scattering by molecules much smaller than the wavelength scales as 1 over wavelength to the fourth power.",
+    "Blue is scattered about 4 times more than red, so the diffuse skylight is blue.",
+    "The sky is not violet because sunlight has less violet, ozone absorbs some, and our cones respond weakly to it.",
+    "Sunsets are red because the long path through air removes most blue before the light reaches us."
+  ],
+  "key_stats": [
+    {"value": "4x", "label": "Blue scattered vs red light"},
+    {"value": "1/λ⁴", "label": "Rayleigh scattering law"},
+    {"value": "~450 nm", "label": "Peak wavelength of skylight we see"},
+    {"value": "99%", "label": "Of air is nitrogen and oxygen"}
+  ],
+  "sections": [
+    {
+      "heading": "Sunlight meets the atmosphere",
+      "paragraphs": [
+        "The Sun emits a broad spectrum that peaks in the green-blue part of the visible range. Before scattering, that mix looks white.",
+        "Roughly 99 percent of the atmosphere is nitrogen and oxygen, molecules around a thousand times smaller than visible wavelengths. That size ratio puts them in the Rayleigh regime."
+      ],
+      "points": ["White sunlight holds every visible wavelength", "Air molecules are far smaller than light waves"],
+      "diagram": {
+        "type": "flow",
+        "caption": "From the Sun to your eye: blue light is redirected on the way.",
+        "nodes": [
+          {"label": "Sunlight enters", "note": "All colours travel together"},
+          {"label": "Molecules scatter", "note": "Short waves bounce the most"},
+          {"label": "Blue fills sky", "note": "Scattered light comes from all sides"},
+          {"label": "Eye sees blue", "note": "Cones weigh the mix as blue"}
+        ]
+      },
+      "photo": "light-tunnel"
+    },
+    {
+      "heading": "Rayleigh scattering",
+      "paragraphs": [
+        "An oscillating electric field induces a dipole in each molecule, which re-radiates light. The radiated power scales with the fourth power of frequency, giving the 1/λ⁴ law.",
+        "Larger particles such as water droplets and dust scatter all wavelengths more evenly (Mie scattering), which is why clouds and haze look white or grey."
+      ],
+      "points": ["Scattering strength rises steeply as wavelength shrinks", "Big particles scatter colours evenly"],
+      "diagram": {
+        "type": "compare",
+        "caption": "Molecules and droplets scatter light very differently.",
+        "left_title": "Rayleigh",
+        "right_title": "Mie",
+        "nodes": [
+          {"label": "Tiny molecules", "note": "Much smaller than the wavelength", "side": "left"},
+          {"label": "Strongly blue", "note": "Favours short wavelengths", "side": "left"},
+          {"label": "Droplets, dust", "note": "Similar size to the wavelength", "side": "right"},
+          {"label": "White or grey", "note": "Scatters all colours alike", "side": "right"}
+        ]
+      },
+      "photo": "radar-dial"
+    },
+    {
+      "heading": "Why not violet?",
+      "paragraphs": [
+        "Violet is scattered even more than blue, yet the sky does not look violet. Sunlight carries less violet, ozone high up absorbs some of it, and our short-wavelength cones respond weakly there.",
+        "The visual system combines the scattered spectrum into a hue that matches a sky blue, slightly desaturated by the remaining white light."
+      ],
+      "points": ["Less violet in sunlight", "Eye sensitivity favours blue"],
+      "diagram": {
+        "type": "parts",
+        "caption": "Three factors turn a violet-rich spectrum into a blue sky.",
+        "center": "Perceived sky blue",
+        "nodes": [
+          {"label": "Solar spectrum", "note": "Less violet emitted"},
+          {"label": "Ozone absorption", "note": "Removes some violet"},
+          {"label": "Cone response", "note": "Weak sensitivity to violet"}
+        ]
+      },
+      "photo": "blue-waves"
+    },
+    {
+      "heading": "Sunsets and the daily cycle",
+      "paragraphs": [
+        "At sunrise and sunset light crosses up to 40 times more air. Most blue is scattered out of the beam before it arrives, leaving reds and oranges.",
+        "The same physics runs every day as the Sun's angle changes the path length."
+      ],
+      "points": ["Longer path, redder light"],
+      "diagram": {
+        "type": "cycle",
+        "caption": "Path length through the air sets the colour through the day.",
+        "center": "One day",
+        "nodes": [
+          {"label": "Dawn", "note": "Long path, red and orange"},
+          {"label": "Midday", "note": "Short path, deep blue"},
+          {"label": "Dusk", "note": "Long path again, red"},
+          {"label": "Night", "note": "No direct sunlight"}
+        ]
+      }
+    }
+  ],
+  "caveats": [
+    "Pollution and aerosols add Mie scattering and wash the blue toward white.",
+    "Exact perceived hue depends on observer, altitude and humidity."
+  ],
+  "glossary": [
+    {"term": "Rayleigh scattering", "definition": "Scattering by particles much smaller than the wavelength, scaling as 1/λ⁴."},
+    {"term": "Mie scattering", "definition": "Scattering by particles about the wavelength's size, nearly colour neutral."},
+    {"term": "Wavelength", "definition": "The distance between wave crests; shorter means bluer for visible light."},
+    {"term": "Cone cells", "definition": "Retinal cells that sense colour, in three types."}
+  ],
+  "follow_ups": ["Why are clouds white?", "Why is the sky on Mars pink?", "Why is the ocean blue?"]
 }

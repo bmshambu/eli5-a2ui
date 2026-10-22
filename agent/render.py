@@ -1,8 +1,8 @@
 """A2UI v0.9 cards for the ELI5 agent: the explainer (Canvas + IFrameSrcdoc), welcome and error."""
 from . import a2ui, explainer
-from .schema import LEVELS, Explanation
+from .schema import DEFAULT_LEVEL, LEVELS, Explanation
 
-FRAME_HEIGHT = 960  # the page scrolls inside the frame when it is longer
+FRAME_HEIGHT = 1100  # the page scrolls inside the frame when it is longer
 
 EXAMPLES = (
     "Why is the sky blue?",
@@ -36,7 +36,7 @@ def _card(prefix: str, children: list[dict]) -> list[dict]:
     return a2ui.surface(prefix, comps)
 
 
-def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = "eli5") -> list[dict]:
+def explanation_card(e: Explanation, sources: list[dict], question: str, level: str = DEFAULT_LEVEL) -> list[dict]:
     """Opener card in chat; the explainer page opens in the side panel. Source links are repeated
     natively under the frame because links inside the sandboxed frame may not open."""
     children = ["frame"]
@@ -55,9 +55,9 @@ def explanation_card(e: Explanation, sources: list[dict], question: str, level: 
 def welcome_card() -> list[dict]:
     buttons = [_ask_button(f"ex{i}", q) for i, q in enumerate(EXAMPLES)]
     return _card("eli5-welcome", [
-        _text("title", "Explain like I'm 5", "h4"),
-        _text("intro", "Ask me about anything. I'll explain it like you're 5, with a picture. "
-                       "Then you can go up to 10, 15 or expert level."),
+        _text("title", "Explain anything", "h4"),
+        _text("intro", "Ask me about anything. I'll research it and write a detailed, illustrated briefing. "
+                       "Then ask for ELI5 if you want the simple version."),
         *buttons,
     ])
 

@@ -1,4 +1,4 @@
-"""The model call behind every explanation: one level per call, so the first answer is fast.
+"""The model call behind every explanation: one level per call (Expert first, ELI5 on request).
 
 Fast path: one Gemini call with Google Search grounding AND a response_schema (supported
 by Gemini 3 and later). If the model rejects that combination, fall back for good to two
@@ -12,22 +12,26 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from .schema import LEVELS, Explanation
+from . import brand
+from .schema import DEFAULT_LEVEL, LEVELS, Explanation
 
 log = logging.getLogger(__name__)
 
 MAX_SOURCES = 6
 
 _STYLE = """Write for {audience}
-{deeper}Plain text only: no markdown, HTML or citation markers. Emoji only in the diagram nodes.
-The diagram must teach the core idea at a glance; pick the type that fits the idea best.
+Length: {length}
+Plain text only: no markdown, HTML, emoji or citation markers.
+Give a section a diagram only where a picture teaches better than words (at least one section
+should have one), and pick the diagram type that fits the idea. Choose photos only from this
+list of brand photos, by id; pick the closest fit, use each photo at most once, and give at
+most 2 sections a photo:
+{photos}
 The 3 follow_ups are natural next questions on new angles, each a full question under 70
-characters. Do not offer "explain it simpler/deeper" as a follow-up: the page already has that."""
+characters. Do not offer a simpler or deeper explanation as a follow-up: the page already has that."""
 
-_DEEPER = "The reader already read a simpler version, so add real depth instead of repeating it.\n"
-
-EXPLAIN_PROMPT = """You write "Explain like I'm 5" explainers. Search the web to check the facts, then explain
-the question below.
+EXPLAIN_PROMPT = """You write clear, accurate explainers for KPMG professionals. Search the web to check the facts,
+then explain the question below.
 """ + _STYLE + """
 
 Question: {question}"""
@@ -35,10 +39,11 @@ Question: {question}"""
 RESEARCH_PROMPT = """Research this question for an explainer aimed at {audience}
 Question: {question}
 
-Write short plain factual notes: the core mechanism, a striking number or name, and common
-misconceptions. No preamble."""
+Write plain factual notes: the core mechanisms, key numbers and names, how it is used in
+practice, trade-offs, common misconceptions and open questions. No preamble."""
 
-WRITER_PROMPT = """You write "Explain like I'm 5" explainers. Using the research notes below, explain the question.
+WRITER_PROMPT = """You write clear, accurate explainers for KPMG professionals. Using the research notes below,
+explain the question.
 """ + _STYLE + """
 
 Question: {question}
@@ -75,7 +80,8 @@ def _search() -> list[genai_types.Tool]:
 
 
 def _prompt_args(question: str, level: str) -> dict:
-    return {"question": question, "audience": LEVELS[level][2], "deeper": "" if level == "eli5" else _DEEPER}
+    return {"question": question, "audience": LEVELS[level][2], "length": LEVELS[level][3],
+            "photos": brand.catalogue()}
 
 
 def sources_from(response) -> list[dict]:
@@ -113,7 +119,7 @@ async def _combined(client, question: str, level: str) -> tuple[Explanation, lis
     return _parsed(response), sources_from(response)
 
 
-async def research(client, question: str, level: str = "eli5") -> tuple[str, list[dict]]:
+async def research(client, question: str, level: str = DEFAULT_LEVEL) -> tuple[str, list[dict]]:
     response = await client.aio.models.generate_content(
         model=model_name(),
         contents=RESEARCH_PROMPT.format(**_prompt_args(question, level)),
@@ -134,7 +140,7 @@ async def write(client, question: str, level: str, notes: str) -> Explanation:
     return _parsed(response)
 
 
-async def explain(client, question: str, level: str = "eli5") -> tuple[Explanation, list[dict]]:
+async def explain(client, question: str, level: str = DEFAULT_LEVEL) -> tuple[Explanation, list[dict]]:
     global _combined_ok
     if _combined_ok is not False:
         try:

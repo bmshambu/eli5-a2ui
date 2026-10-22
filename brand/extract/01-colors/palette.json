@@ -1,0 +1,255 @@
+{
+ "observed_2026": [
+  {
+   "group": "Primary",
+   "name": "KPMG Blue",
+   "hex": "#00338D",
+   "rgb": [
+    0,
+    51,
+    141
+   ],
+   "usage": "Dominant brand colour: backgrounds, headlines, body text in all 5 PDFs",
+   "vector_uses": 1173,
+   "text_chars": 134264
+  },
+  {
+   "group": "Primary",
+   "name": "Cobalt Blue",
+   "hex": "#1E49E2",
+   "rgb": [
+    30,
+    73,
+    226
+   ],
+   "usage": "Bright blue for full-bleed cover/section backgrounds and gradients (2026 refresh)",
+   "vector_uses": 113,
+   "text_chars": 3256
+  },
+  {
+   "group": "Primary",
+   "name": "Dark Blue",
+   "hex": "#0C233C",
+   "rgb": [
+    12,
+    35,
+    60
+   ],
+   "usage": "Deep navy for dark panels and tech-report backgrounds",
+   "vector_uses": 1,
+   "text_chars": 0
+  },
+  {
+   "group": "Secondary",
+   "name": "Pacific Blue",
+   "hex": "#00B8F5",
+   "rgb": [
+    0,
+    184,
+    245
+   ],
+   "usage": "Accent highlights, numbers, rules, chart accents",
+   "vector_uses": 141,
+   "text_chars": 908
+  },
+  {
+   "group": "Secondary",
+   "name": "Light Blue",
+   "hex": "#76D2FF",
+   "rgb": [
+    118,
+    210,
+    255
+   ],
+   "usage": "Secondary accent, chart series",
+   "vector_uses": 15,
+   "text_chars": 132
+  },
+  {
+   "group": "Secondary",
+   "name": "Pale Blue",
+   "hex": "#ACEAFF",
+   "rgb": [
+    172,
+    234,
+    255
+   ],
+   "usage": "Light accent text on dark blue, chart fills",
+   "vector_uses": 61,
+   "text_chars": 622
+  },
+  {
+   "group": "Secondary",
+   "name": "Purple",
+   "hex": "#7213EA",
+   "rgb": [
+    114,
+    19,
+    234
+   ],
+   "usage": "Accent for gradients and data highlights",
+   "vector_uses": 19,
+   "text_chars": 47
+  },
+  {
+   "group": "Secondary",
+   "name": "Light Purple",
+   "hex": "#B497FF",
+   "rgb": [
+    180,
+    151,
+    255
+   ],
+   "usage": "Gradient partner, chart series",
+   "vector_uses": 17,
+   "text_chars": 0
+  },
+  {
+   "group": "Secondary",
+   "name": "Dark Purple",
+   "hex": "#510DBC",
+   "rgb": [
+    81,
+    13,
+    188
+   ],
+   "usage": "Gradient depth (Impact Plan)",
+   "vector_uses": 1,
+   "text_chars": 0
+  },
+  {
+   "group": "Secondary",
+   "name": "Magenta",
+   "hex": "#AB0D82",
+   "rgb": [
+    171,
+    13,
+    130
+   ],
+   "usage": "Rare accent; data highlights",
+   "vector_uses": 11,
+   "text_chars": 0
+  },
+  {
+   "group": "Tint",
+   "name": "Blue Tint 20",
+   "hex": "#D2DBF9",
+   "rgb": [
+    210,
+    219,
+    249
+   ],
+   "usage": "Panel / table fills",
+   "vector_uses": 66,
+   "text_chars": 0
+  },
+  {
+   "group": "Tint",
+   "name": "Blue Tint 10",
+   "hex": "#E9EDFC",
+   "rgb": [
+    233,
+    237,
+    252
+   ],
+   "usage": "Light panel backgrounds",
+   "vector_uses": 33,
+   "text_chars": 0
+  },
+  {
+   "group": "Tint",
+   "name": "Blue Tint 5",
+   "hex": "#F3F6FF",
+   "rgb": [
+    243,
+    246,
+    255
+   ],
+   "usage": "Very light background",
+   "vector_uses": 6,
+   "text_chars": 0
+  },
+  {
+   "group": "Neutral",
+   "name": "Grey 60",
+   "hex": "#666666",
+   "rgb": [
+    102,
+    102,
+    102
+   ],
+   "usage": "Secondary body text, captions",
+   "vector_uses": 81,
+   "text_chars": 5443
+  },
+  {
+   "group": "Neutral",
+   "name": "Grey 30",
+   "hex": "#B2B2B2",
+   "rgb": [
+    178,
+    178,
+    178
+   ],
+   "usage": "Rules, dividers, inactive nav",
+   "vector_uses": 220,
+   "text_chars": 0
+  },
+  {
+   "group": "Neutral",
+   "name": "Grey 10",
+   "hex": "#E5E5E5",
+   "rgb": [
+    229,
+    229,
+    229
+   ],
+   "usage": "Light rules, table borders",
+   "vector_uses": 65,
+   "text_chars": 0
+  },
+  {
+   "group": "Neutral",
+   "name": "White",
+   "hex": "#FFFFFF",
+   "rgb": [
+    255,
+    255,
+    255
+   ],
+   "usage": "Text on blue, page background",
+   "vector_uses": 1092,
+   "text_chars": 30167
+  }
+ ],
+ "legacy_brand_skill": [
+  {
+   "name": "KPMG Blue",
+   "hex": "#00338D"
+  },
+  {
+   "name": "Medium Blue",
+   "hex": "#005EB8"
+  },
+  {
+   "name": "Light Blue",
+   "hex": "#0091DA"
+  },
+  {
+   "name": "Violet",
+   "hex": "#483698"
+  },
+  {
+   "name": "Purple",
+   "hex": "#470A68"
+  },
+  {
+   "name": "Light Purple",
+   "hex": "#6D2077"
+  },
+  {
+   "name": "Green",
+   "hex": "#00A3A1"
+  }
+ ]
+}
