@@ -22,13 +22,14 @@ from google.adk.events import Event, EventActions
 from google.genai import types as genai_types
 
 from . import a2ui, document, explainer, llm, pdf, render, validate
-from .brand import THEMES
+from .brand import DEFAULT_THEME, THEMES
 from .schema import DEFAULT_LEVEL, LEVELS, Explanation
 
 log = logging.getLogger(__name__)
 
 MAX_QUESTION_CHARS = 500
 STATE_KEY = "eli5_last"  # {"question": str, "level": str}
+THEME_KEY = "eli5_theme"  # the theme the user last switched to; new answers use it (default Creative)
 PAGES_KEY = "eli5_pages"  # the last few explanations shown, so "Download PDF" needs no new model call
 MAX_PAGES = 4
 DOC_QUESTION = explainer.DOC_QUESTION
@@ -111,6 +112,7 @@ class Reply(NamedTuple):
     remember: dict | None = None  # new STATE_KEY value
     page: dict | None = None  # the explanation shown, for PAGES_KEY
     files: tuple = ()  # file parts, e.g. the PDF
+    theme: str | None = None  # new THEME_KEY value, when the user switched theme
 
 
 # "switch to the AI theme", "use the finance data theme", "show it in the corporate look"
@@ -159,7 +161,8 @@ async def switch_theme(ctx: dict, pages: list | None = None, docs: list | None =
     except Exception:  # noqa: BLE001
         log.exception("theme switch failed for %r to %s", question, theme)
         return Reply("Sorry, I couldn't switch the theme. Try the button again.", [])
-    return Reply(f"**{expl.title}** in the {THEMES[theme].name} theme.", messages, {"question": question, "level": level}, page)
+    return Reply(f"**{expl.title}** in the {THEMES[theme].name} theme.", messages, {"question": question, "level": level},
+                 page, theme=theme)
 
 
 async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None = None) -> Reply:
@@ -183,9 +186,11 @@ async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None =
     return Reply(f"Here is **{expl.title}** ({LEVELS[level][0]}) as a PDF: {name}", [], files=(part,))
 
 
-async def respond(content, last: dict | None = None, docs: list | None = None, pages: list | None = None) -> Reply:
+async def respond(content, last: dict | None = None, docs: list | None = None, pages: list | None = None,
+                  theme: str | None = None) -> Reply:
     """The reply to this turn. `docs` are the documents to explain from (this turn's upload, or
-    the latest one in the session); `pages` are the explanations shown earlier (for the PDF)."""
+    the latest one in the session); `pages` are the explanations shown earlier (for the PDF and
+    theme switches); `theme` is the theme the user last switched to (Creative if none)."""
     action = a2ui.extract_action(content)
     if action and action.get("name") == render.PDF_ACTION:
         return await download_pdf(action.get("context") or {}, pages, docs)
@@ -204,6 +209,7 @@ async def respond(content, last: dict | None = None, docs: list | None = None, p
     question, level = asked
     try:
         expl, sources = await llm.explain(_get_client(), question, level, docs)
+        expl = with_theme(expl, theme if theme in THEMES else DEFAULT_THEME)
         messages, page = _card(expl, sources, question, level, [d.name for d in docs or []])
         return Reply(f"**{expl.title}** ({LEVELS[level][0]}): {expl.one_liner}", messages,
                      {"question": question, "level": level}, page)
@@ -220,10 +226,12 @@ class Eli5Agent(BaseAgent):
         last = None if uploaded else ctx.session.state.get(STATE_KEY)
         docs = uploaded or document.latest(ctx.session.events)
         pages = ctx.session.state.get(PAGES_KEY) or []
-        reply = await respond(ctx.user_content, last, docs, pages)
+        reply = await respond(ctx.user_content, last, docs, pages, ctx.session.state.get(THEME_KEY))
         validate.check(reply.messages)
         parts = [genai_types.Part(text=reply.text), *reply.files] + [a2ui.to_genai_part(m) for m in reply.messages]
         delta = {STATE_KEY: reply.remember} if reply.remember else {}
+        if reply.theme:
+            delta[THEME_KEY] = reply.theme
         if reply.page:
             key = (reply.page["question"], reply.page["level"])
             delta[PAGES_KEY] = [p for p in pages if (p.get("question"), p.get("level")) != key][-(MAX_PAGES - 1):] + [reply.page]

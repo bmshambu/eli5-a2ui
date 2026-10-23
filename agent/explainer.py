@@ -171,6 +171,50 @@ font-size:32px;font-weight:700;line-height:1.1;color:#fff}
 @media (prefers-color-scheme:dark){.t-finance-data{--fin-title:#76D2FF;--fin-latest:#ACEAFF}}
 """
 
+# The default Creative look: an accent trio from the palette (body style --a1..--a3, --ah), three
+# cover layouts, emoji badges, brand-gradient details and more motion (drifting colour blobs, a
+# shifting cover gradient, a bobbing cover emoji, sections sliding in from alternate sides).
+CREATIVE_CSS = """
+body.t-creative{--c0:var(--a1);--c1:var(--a2);--c2:var(--a3);--accent:var(--a1);--hi:var(--a2)}
+.blobs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.blobs i{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(70px);opacity:.14;animation:float 22s ease-in-out infinite alternate}
+.blobs i:nth-child(1){background:var(--a1);top:20%;right:-180px}.blobs i:nth-child(2){background:var(--a3);bottom:-160px;left:-180px;animation-duration:28s}
+@keyframes float{to{transform:translate(-70px,90px) scale(1.15)}}
+.t-creative .wrap{position:relative;z-index:1}
+.t-creative .cover{background:linear-gradient(120deg,var(--a1),#00338D 55%,var(--a3));background-size:220% 220%;animation:shift 14s ease-in-out infinite alternate}
+@keyframes shift{from{background-position:0% 50%}to{background-position:100% 50%}}
+.t-creative .cover .photo{mix-blend-mode:normal;opacity:.92}
+.t-creative .cover h1 .hl,.t-creative .eyebrow{color:var(--ah)}
+.cv-poster h1{font-size:36px}
+.cv-poster .shade{background:linear-gradient(100deg,color-mix(in srgb,var(--a1) 94%,transparent) 0%,color-mix(in srgb,#00338D 72%,transparent) 48%,transparent 100%)}
+.cv-split .photo{left:50%;clip-path:polygon(14% 0,100% 0,100% 100%,0 100%)}
+.cv-split .shade{background:linear-gradient(90deg,color-mix(in srgb,var(--a1) 30%,transparent),transparent 50%)}
+.cv-split .in,.cv-mosaic .in{max-width:54%}
+.cv-mosaic .photo{display:none}.cv-mosaic .shade{background:none}
+.tiles{position:absolute;top:0;right:0;bottom:0;width:46%;display:grid;grid-template:1fr 1fr/1fr 1fr;gap:4px;overflow:hidden}
+.tiles div{background-size:cover;background-position:center;animation:kb 20s ease-in-out infinite alternate}
+.tiles div:first-child{grid-column:1/3}.tiles div:nth-child(2){animation-delay:-7s}.tiles div:nth-child(3){animation-delay:-13s}
+.big-emoji{position:absolute;z-index:2;right:7%;top:20%;font-size:84px;line-height:1;filter:drop-shadow(0 8px 24px rgba(0,0,0,.35));animation:bob 4s ease-in-out infinite}
+.cv-split .big-emoji{right:auto;left:calc(50% - 20px);top:18px;font-size:64px}
+.cv-mosaic .big-emoji{right:auto;left:calc(54% - 48px);top:auto;bottom:16px;width:92px;height:92px;display:grid;place-items:center;font-size:50px;background:#fff;border-radius:50%}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-12px) rotate(5deg)}}
+@media (max-width:600px){.cv-split .in,.cv-mosaic .in{max-width:none}.cv-split .photo{left:0;clip-path:none;opacity:.35}
+.tiles{width:100%;opacity:.3}.big-emoji,.cv-split .big-emoji,.cv-mosaic .big-emoji{font-size:48px;width:auto;height:auto;background:none;top:auto;bottom:12px;right:12px;left:auto}}
+.t-creative h2 .emo{display:inline-grid;place-items:center;width:44px;height:44px;font-size:26px;flex:0 0 auto;align-self:center;
+background:color-mix(in srgb,var(--a1) 14%,transparent);border:2px solid var(--a1);animation:pop .5s cubic-bezier(.3,1.6,.5,1) both}
+.t-creative h2 .no{color:var(--a1)}
+.t-creative section:nth-of-type(even){background:color-mix(in srgb,var(--a1) 6%,transparent);margin:0 -22px;padding:2px 22px 12px}
+.js .t-creative section.rv:nth-of-type(odd):not(.in){transform:translateX(-36px)}.js .t-creative section.rv:nth-of-type(even):not(.in){transform:translateX(36px)}
+.t-creative .kpi{border-top:4px solid var(--a1);border-image:linear-gradient(90deg,var(--a1),var(--a3)) 1}
+.t-creative .kpi .em{display:block;font-size:30px;line-height:1;margin-bottom:6px}.t-creative .kpi:hover{transform:translateY(-4px) rotate(-.6deg)}
+.t-creative ul.sq li::before,.t-creative .label::before{background:linear-gradient(135deg,var(--a1),var(--a3))}
+.t-creative .toc a{background:linear-gradient(135deg,#00338D,var(--a1))}.t-creative .toc{background:transparent;gap:4px;padding:0}
+.t-creative .primary{background:linear-gradient(120deg,var(--a1),var(--a3))}
+.t-creative .analogy{border-left-color:var(--a2)}
+@media (prefers-reduced-motion:reduce){html:not(.motion-on) .t-creative .cover,html:not(.motion-on) .blobs i,html:not(.motion-on) .big-emoji,
+html:not(.motion-on) .tiles div{animation:none!important}html.js:not(.motion-on) .t-creative section.rv:not(.in){transform:none}}
+"""
+
 _SCRIPT = """
 (function(){document.documentElement.classList.add('js');
 function count(el){var m=/^([^0-9]*)([0-9][0-9,]*(?:\\.[0-9]+)?)(.*)$/.exec(el.textContent);if(!m||el.dataset.counted)return;el.dataset.counted=1;
@@ -241,6 +285,13 @@ def _theme_bar(e: Explanation, question: str, level: str) -> str:
     return f'<div class="themes"><span class="tlab">Theme</span>{buttons}</div>'
 
 
+def _accent(e: Explanation) -> str:
+    if e.theme != "creative":
+        return ""
+    a1, a2, a3, ah = brand.ACCENTS.get(e.accent, brand.ACCENTS["cobalt"])
+    return f' style="--a1:{a1};--a2:{a2};--a3:{a3};--ah:{ah}"'
+
+
 def _logo() -> str:
     return brand.logo_svg("white").replace("<svg", '<svg class="logo" role="img" aria-label="KPMG"', 1)
 
@@ -261,11 +312,34 @@ def _cover_stats(e: Explanation) -> str:
     return f'<div class="cstats rv0" style="--d:4">{stats}</div>' if stats else ""
 
 
+def _emoji(text: str | None) -> str:
+    """A model-chosen emoji, kept only if it looks like one (short, no letters or digits)."""
+    text = (text or "").strip()
+    return "" if not text or len(text) > 8 or any(ch.isalnum() for ch in text) else _esc(text)
+
+
+def mosaic_photos(e: Explanation) -> list[str]:
+    """The two section photos a mosaic cover shows next to the cover photo (empty if too few)."""
+    picks = list(dict.fromkeys(s.photo for s in e.sections if s.photo and s.photo != e.hero_photo))[:2]
+    return picks if e.theme == "creative" and e.cover_style == "mosaic" and len(picks) == 2 else []
+
+
 def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
     chips = "".join(f'<span class="chip-tag">{_esc(t)}</span>' for t in e.tags[:3])
     finance = e.theme == "finance-data"
+    creative, cls, art = e.theme == "creative", "", ""
+    if creative:
+        tiles = mosaic_photos(e)
+        style = "mosaic" if tiles else ("split" if e.cover_style == "split" else "poster")
+        cls = f" cv-{style}"
+        if tiles:
+            art = '<div class="tiles">' + "".join(f'<div style="background-image:url({brand.photo_uri(p)})"></div>'
+                                                  for p in [e.hero_photo, *tiles]) + "</div>"
+        if _emoji(e.emoji):
+            art += f'<div class="big-emoji" aria-hidden="true">{_emoji(e.emoji)}</div>'
+    photo = "" if cls == " cv-mosaic" else f'<div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
     return (
-        f'<header class="cover"><div class="photo" style="background-image:url({brand.photo_uri(e.hero_photo)})"></div>'
+        f'<header class="cover{cls}">{photo}{art}'
         '<div class="shade"></div><div class="frames" aria-hidden="true"><i></i><i></i><i></i></div><div class="sweep"></div>'
         '<button class="motion" id="motion" type="button" hidden>Play motion</button>'
         f'<div class="in"><div class="rv0">{_logo()}</div>'
@@ -279,7 +353,8 @@ def _cover(e: Explanation, level: str, from_document: bool = False) -> str:
 def _kpis(e: Explanation) -> str:
     tiles = "".join(
         f'<div class="kpi" style="--k:{_KPI_COLOURS[i % 4]}">'
-        + (f'<span class="ic" aria-hidden="true">{brand.icon_svg(s.icon)}</span>' if s.icon else "")
+        + (f'<span class="em" aria-hidden="true">{_emoji(s.emoji)}</span>' if e.theme == "creative" and _emoji(s.emoji) else
+           f'<span class="ic" aria-hidden="true">{brand.icon_svg(s.icon)}</span>' if s.icon else "")
         + f'<span class="v">{_esc(s.value)}</span><span class="l">{_esc(s.label)}</span></div>'
         for i, s in enumerate(e.key_stats[:4])
     )
@@ -298,16 +373,18 @@ def _cols(n: int) -> int:
 
 def _sections(e: Explanation) -> tuple[str, str]:
     """(contents grid, section bodies). Section photos are capped and never repeat the cover."""
-    used, toc, body = {e.hero_photo}, [], []
+    in_cover = set(mosaic_photos(e))  # shown in the mosaic cover, so no banner as well
+    used, toc, body = {e.hero_photo, *in_cover}, [], []
     for i, s in enumerate(e.sections, 1):
         toc.append(f'<a href="#s{i}"><b>{i:02d}</b>{_esc(s.heading)}</a>')
         photo = ""
-        if s.photo and s.photo not in used and len(used) <= MAX_SECTION_PHOTOS:
+        if s.photo and s.photo not in used and len(used) <= MAX_SECTION_PHOTOS - len(in_cover):
             used.add(s.photo)
             photo = f'<img class="banner" alt="" src="{brand.photo_uri(s.photo)}">'
         paras = "".join(f"<p>{_esc(p)}</p>" for p in s.paragraphs)
         points = f'<div class="points">{_bullets(s.points[:4])}</div>' if s.points else ""
-        body.append(f'<section id="s{i}"><h2><span class="no">{i:02d}</span>{_esc(s.heading)}</h2>'
+        emo = f'<span class="emo" aria-hidden="true">{_emoji(s.emoji)}</span>' if e.theme == "creative" and _emoji(s.emoji) else ""
+        body.append(f'<section id="s{i}"><h2>{emo}<span class="no">{i:02d}</span>{_esc(s.heading)}</h2>'
                     + (f'<div class="ref">From the document: {_esc(s.doc_ref)}</div>' if s.doc_ref else "") +
                     f"{photo}{paras}{charts.render(s.chart)}{visuals.render(s.diagram, e.title)}{points}</section>")
     contents = f'<div class="label">Contents</div><nav class="toc" style="--cols:{_cols(len(toc))}">{"".join(toc)}</nav>' if len(toc) > 1 else ""
@@ -317,7 +394,8 @@ def _sections(e: Explanation) -> tuple[str, str]:
 def page(e: Explanation, sources: list[dict], question: str, level: str = "expert", documents: list[str] = ()) -> str:
     """The whole page. `documents` names the uploaded files the explanation is based on."""
     contents, sections = _sections(e)
-    analogy = f'<div class="analogy"><b>Think of it like</b>{_esc(e.analogy)}</div>' if e.analogy else ""
+    bulb = "\U0001F4A1 " if e.theme == "creative" else ""
+    analogy = f'<div class="analogy"><b>{bulb}Think of it like</b>{_esc(e.analogy)}</div>' if e.analogy else ""
     caveats = (f'<div class="label">Caveats and open questions</div><div class="panel">{_bullets(e.caveats)}</div>'
                if e.caveats else "")
     gloss = "".join(f"<tr><td>{_esc(t.term)}</td><td>{_esc(t.definition)}</td></tr>" for t in e.glossary)
@@ -337,8 +415,8 @@ def page(e: Explanation, sources: list[dict], question: str, level: str = "exper
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}{THEME_CSS}</style></head>"
-        f'<body class="t-{e.theme}">'
+        f"<title>{_esc(e.title)}</title><style>{_STYLE}{visuals.CSS}{charts.CSS}{_MOTION}{THEME_CSS}{CREATIVE_CSS}</style></head>"
+        f'<body class="t-{e.theme}"{_accent(e)}>{"<div class=blobs aria-hidden=true><i></i><i></i></div>" if e.theme == "creative" else ""}'
         f'{_cover(e, level, bool(documents))}'
         f'<main class="wrap">{_theme_bar(e, question, level)}{_kpis(e.model_copy(update={"key_stats": e.key_stats[3:]})) if e.theme == "finance-data" else _kpis(e)}'
         f'<div class="label">At a glance</div><p class="summary">{_esc(e.summary)}</p>{analogy}'

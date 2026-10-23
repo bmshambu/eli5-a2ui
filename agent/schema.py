@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from .brand import DEFAULT_THEME, ICON_HELP, ICON_IDS, PHOTO_IDS, THEME_HELP, THEME_IDS
+from .brand import ACCENT_IDS, DEFAULT_THEME, ICON_HELP, ICON_IDS, PHOTO_IDS, THEME_HELP, THEME_IDS
 
 # key -> (short label, how the user asks for it, who it is written for, how much to write)
 LEVELS = {
@@ -79,6 +79,7 @@ class Stat(BaseModel):
     label: str = Field(description="What the value means, under 60 characters.")
     icon: Optional[Literal[ICON_IDS]] = Field(
         default=None, description="A brand line icon that fits the stat, if one does: " + ICON_HELP)
+    emoji: Optional[str] = Field(default=None, description="One emoji that fits the stat, e.g. a globe for countries.")
 
 
 class Section(BaseModel):
@@ -90,6 +91,7 @@ class Section(BaseModel):
     chart: Optional[Chart] = Field(
         default=None, description="A chart when this section turns on 3 or more comparable numbers stated in the source.")
     photo: Optional[PhotoId] = Field(default=None, description="A brand photo id that fits this section, or none.")
+    emoji: Optional[str] = Field(default=None, description="One emoji that captures this section.")
     doc_ref: Optional[str] = Field(
         default=None, description="When explaining a document: where this comes from in it, e.g. 'Section 3' or 'Slides 4-6'.")
 
@@ -107,7 +109,14 @@ class Explanation(BaseModel):
         description="How settled the answer is: high = settled science or fact; medium = mostly agreed; "
                     "low = contested or unknown.")
     theme: Literal[THEME_IDS] = Field(
-        default=DEFAULT_THEME, description="The KPMG theme recipe whose look fits the topic: " + THEME_HELP)
+        default=DEFAULT_THEME, description="Always 'creative' (the user can switch to another theme later): " + THEME_HELP)
+    accent: Literal[ACCENT_IDS] = Field(
+        default="cobalt", description="Accent colour for the creative look: cobalt (calm, everyday), pacific (bright, "
+                                      "digital), purple (future, innovation), magenta (bold, human, energetic).")
+    cover_style: Literal["poster", "split", "mosaic"] = Field(
+        default="poster", description="Cover layout: poster = one big photo; split = colour block beside a photo; "
+                                      "mosaic = a grid of the cover photo and two section photos (needs 2 section photos).")
+    emoji: Optional[str] = Field(default=None, description="One big emoji for the cover that sums up the topic.")
     hero_photo: PhotoId = Field(description="The brand photo id that best fits the whole topic, preferably one of "
                                             "the chosen theme's cover photos.")
     summary: str = Field(description="An executive summary paragraph of 3 to 5 sentences.")
