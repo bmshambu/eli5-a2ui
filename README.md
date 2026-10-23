@@ -19,6 +19,27 @@ The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layou
 
 **Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full. When "reduce motion" is on (Windows "Animation effects" off, common on managed laptops), the page keeps only fades and count-ups, and a **Play motion** button on the cover turns the full motion poster on.
 
+## Create: posters, emails, social posts, one-pagers
+
+Besides explaining, the agent makes things on request in the same brand (`agent/maker.py`):
+"Create a poster for our AI training week", "Draft an email inviting the team to the town hall",
+"Write a LinkedIn post about …", "Make a one-pager on …". One structured model call
+(`llm.create`, no web search) writes a `Creation` (schema.py); names, dates, places and links
+the user did not give become `[placeholders]`, never invented.
+
+- Each format is laid out as the real thing: a portrait poster, an email as it lands in the
+  inbox, a LinkedIn-style post with its image, a one-page flyer. Creative look by default
+  (accent, emoji, motion); the theme bar switches it without a model call.
+- Emails and posts are also given as plain text, in a copy box on the page and in the chat
+  reply, ready to paste into Outlook or LinkedIn.
+- **Download PDF** works for creations too (`pdf.build_creation`: an A4 poster, or a branded page).
+- Changes edit the last draft: the page's "Change it" buttons, "Turn it into an email", or
+  typed changes such as "make it shorter" or "more formal" right after a creation.
+- "Turn this into a poster" right after a briefing works from that briefing; with an uploaded
+  document, the facts come from the document.
+- Session state: `eli5_create` (the last request and draft) and `eli5_mode` (whether the last
+  answer was a creation or an explanation, so "make it simpler" goes to the right place).
+
 ## Creative look (default)
 
 New answers use the **Creative** look, which mixes the whole brand library instead of following one recipe. The model does the art direction for each topic, so different topics look different:

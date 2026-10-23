@@ -1,6 +1,6 @@
 """A2UI v0.9 cards for the explainer agent: the explainer (Canvas + IFrameSrcdoc), welcome and error."""
-from . import a2ui, explainer
-from .schema import DEFAULT_LEVEL, LEVELS, Explanation
+from . import a2ui, explainer, maker
+from .schema import DEFAULT_LEVEL, KINDS, LEVELS, Creation, Explanation
 
 FRAME_HEIGHT = 1100  # the page scrolls inside the frame when it is longer
 PDF_ACTION = "pdf"  # the agent builds the PDF (pdf.py) and sends it back as a file in chat
@@ -10,6 +10,8 @@ EXAMPLES = (
     "How do vaccines work?",
     "What is a black hole?",
     "How does the internet work?",
+    "Create a poster for our AI training week",
+    "Draft an email inviting the team to a town hall",
 )
 
 
@@ -57,12 +59,25 @@ def explanation_card(e: Explanation, sources: list[dict], question: str, level: 
     return a2ui.surface("eli5", [root, *comps])
 
 
+def creation_card(c: Creation, request: str) -> list[dict]:
+    """A poster, email, social post or one-pager in the side panel, with a native Download PDF."""
+    comps = [
+        {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": maker.page(c, request), "height": FRAME_HEIGHT},
+        {"id": "pdf", "component": "MaterialButton", "label": "Download PDF", "variant": "stroked", "leadingIcon": "download",
+         "action": {"event": {"name": PDF_ACTION, "context": {"kind": "create", "request": request, "theme": c.theme}}}},
+    ]
+    root = {"id": "root", "component": "Canvas", "cardTitle": f"{c.title} · {KINDS[c.kind][0]}", "cardDescription": c.tagline,
+            "cardIcon": "brush", "autoOpen": True, "children": ["frame", "pdf"]}
+    return a2ui.surface("eli5-make", [root, *comps])
+
+
 def welcome_card() -> list[dict]:
     buttons = [_ask_button(f"ex{i}", q) for i, q in enumerate(EXAMPLES)]
     return _card("eli5-welcome", [
         _text("title", "Explain anything", "h4"),
         _text("intro", "Ask me about anything, or upload a document and ask me to explain it. I'll write a detailed, illustrated briefing. "
-                       "Then ask me to explain it in a simpler way if you want the short, plain-English version."),
+                       "Then ask me to explain it in a simpler way if you want the short, plain-English version. "
+                       "I can also create on-brand content: a poster, an email, a social post or a one-pager."),
         *buttons,
     ])
 

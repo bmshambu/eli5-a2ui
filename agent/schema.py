@@ -128,3 +128,60 @@ class Explanation(BaseModel):
     glossary: list[Term]
     follow_ups: list[str] = Field(
         description="Exactly 3 follow-up questions on new angles, phrased as the user would ask them.")
+
+
+# What the agent can make besides explanations, on the same brand.
+# key -> (label, what it is, how much to write)
+KINDS = {
+    "poster": ("Poster", "a one-page poster for a wall, screen or intranet",
+               "a punchy headline of up to 8 words, a tagline, 2 to 4 short points, the event details if any, one call to action. "
+               "Very little text: a poster is read in seconds."),
+    "email": ("Email", "an email the user will send",
+              "a subject line, a one-line preview, a greeting, 2 to 4 short paragraphs (or 1 or 2 blocks with points), the details "
+              "if any, a call to action and a sign-off. Clear and warm; match the tone the user asks for (formal by default)."),
+    "social": ("Social post", "a LinkedIn-style social post",
+               "a hook headline for the image, 2 to 4 short paragraphs (the first line must hook), 0 to 4 points, "
+               "3 to 5 hashtags, an optional call to action."),
+    "flyer": ("One-pager", "a one-page flyer, announcement, invitation, memo or factsheet",
+              "a headline, a tagline, a short intro paragraph, 2 to 4 blocks (heading, 1 or 2 sentences, 0 to 3 points), "
+              "the details if any, a call to action."),
+}
+KIND_IDS = tuple(KINDS)
+
+
+class Detail(BaseModel):
+    label: str = Field(description="e.g. 'Date', 'Where', 'Who', 'Deadline'.")
+    value: str = Field(description="As the user gave it, or a [placeholder] like '[Date]' when they did not.")
+
+
+class Block(BaseModel):
+    heading: str = Field(description="Under 40 characters.")
+    text: str = Field(description="1 or 2 sentences.")
+    points: list[str] = Field(default_factory=list, description="0 to 3 short points.")
+    emoji: Optional[str] = Field(default=None, description="One emoji for this block.")
+
+
+class Creation(BaseModel):
+    """A poster, email, social post or one-pager in the KPMG brand."""
+    kind: Literal[KIND_IDS] = Field(description="poster, email, social (a LinkedIn-style post) or flyer (a one-pager, "
+                                                "announcement, invitation, memo or factsheet).")
+    title: str = Field(description="The headline (for an email, the headline in the email's banner).")
+    tagline: str = Field(description="One line under the headline, under 90 characters.")
+    subject: Optional[str] = Field(default=None, description="email only: the subject line, under 70 characters.")
+    preheader: Optional[str] = Field(default=None, description="email only: the preview line, under 100 characters.")
+    greeting: Optional[str] = Field(default=None, description="email only: e.g. 'Dear colleagues,'.")
+    body: list[str] = Field(default_factory=list, description="The main text, one paragraph per item.")
+    blocks: list[Block] = Field(default_factory=list, description="Short headed blocks (one-pager, longer emails).")
+    points: list[str] = Field(default_factory=list, description="Key points, short.")
+    details: list[Detail] = Field(default_factory=list, description="0 to 4 practical facts: date, time, place, who, deadline.")
+    cta: Optional[str] = Field(default=None, description="The call to action, 2 to 6 words, e.g. 'Register by 14 November'.")
+    sign_off: Optional[str] = Field(default=None, description="email only: e.g. 'Kind regards,\\n[Your name]'.")
+    hashtags: list[str] = Field(default_factory=list, description="social only: 3 to 5 hashtags without the # sign.")
+    theme: Literal[THEME_IDS] = Field(default=DEFAULT_THEME, description="Always 'creative' (the user can switch later).")
+    accent: Literal[ACCENT_IDS] = Field(
+        default="cobalt", description="Accent colour: cobalt (calm, everyday), pacific (bright, digital), "
+                                      "purple (future, innovation), magenta (bold, human, celebration).")
+    emoji: Optional[str] = Field(default=None, description="One big emoji that sums it up.")
+    hero_photo: PhotoId = Field(description="The brand photo id that best fits.")
+    ideas: list[str] = Field(description="Exactly 3 quick changes the user might want next, phrased as they would ask, "
+                                         "under 40 characters, e.g. 'Make it more formal'.")

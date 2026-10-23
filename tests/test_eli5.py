@@ -10,8 +10,8 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, pdf, render, validate, visuals
-from agent.schema import Chart, Diagram, DiagramNode, Explanation, Series, Stat
+from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, maker, pdf, render, validate, visuals
+from agent.schema import Block, Chart, Creation, Detail, Diagram, DiagramNode, Explanation, Series, Stat
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
 Q = "Why is the sky blue?"
@@ -19,6 +19,30 @@ SOURCES = [
     {"title": "NASA: Why is the sky blue?", "uri": "https://example.org/nasa"},
     {"title": "Rayleigh scattering [Wikipedia]", "uri": "https://example.org/rayleigh"},
 ]
+
+
+POSTER = Creation(
+    kind="poster", title="AI Training Week is here", tagline="Five days of hands-on sessions for every team",
+    points=["Live demos", "Prompting clinics", "Responsible AI"], details=[Detail(label="Date", value="[Date]"),
+    Detail(label="Where", value="[Venue]")], cta="Register by [Deadline]", accent="purple", emoji="\U0001F680",
+    hero_photo="neon-corridor", ideas=["Make it more formal", "Add a speaker", "Use a brighter photo"])
+EMAIL = Creation(
+    kind="email", title="Join our town hall", tagline="An hour on what 2027 holds for us", subject="Town hall: [Date]",
+    preheader="Bring your questions", greeting="Dear colleagues,", body=["We are holding a town hall.", "Please join us."],
+    blocks=[Block(heading="Agenda", text="Strategy and Q&A.", points=["Strategy", "Q&A"])],
+    details=[Detail(label="When", value="[Date], [Time]")], cta="Add it to your calendar",
+    sign_off="Kind regards,\n[Your name]", accent="cobalt", hero_photo="blue-arcs",
+    ideas=["Make it shorter", "Friendlier tone", "Add a dial-in link"])
+SOCIAL = EMAIL.model_copy(update={"kind": "social", "hashtags": ["KPMG", "#AI", "Learning"], "subject": None})
+FLYER = POSTER.model_copy(update={"kind": "flyer", "body": ["A week of learning."],
+                                  "blocks": [Block(heading="Demos", text="See it live.", emoji="\U0001F3AC")]})
+MADE = {"email": EMAIL, "social": SOCIAL, "flyer": FLYER}
+
+
+def _asked_kind(contents) -> str:
+    text = contents[0].parts[-1].text
+    hint = text.split("(probably ", 1)
+    return hint[1].split(")", 1)[0] if len(hint) > 1 else "poster"
 
 
 class FakeModels:
@@ -36,6 +60,9 @@ class FakeModels:
         chunks = [SimpleNamespace(web=SimpleNamespace(uri=s["uri"], title=s["title"])) for s in SOURCES]
         chunks.append(chunks[0])  # duplicate is dropped
         grounded = [SimpleNamespace(grounding_metadata=SimpleNamespace(grounding_chunks=chunks))] if config.tools else []
+        if config.response_schema is Creation:
+            made = MADE.get(_asked_kind(contents), POSTER)
+            return SimpleNamespace(parsed=made, text=made.model_dump_json(), candidates=[])
         if config.response_schema is Explanation:
             return SimpleNamespace(parsed=SKY, text=SKY.model_dump_json(), candidates=grounded)
         return SimpleNamespace(text="notes", candidates=grounded)
@@ -218,7 +245,7 @@ def test_falls_back_to_two_calls_when_model_cannot_combine(monkeypatch):
 
 def test_respond_failure_gives_retry_card(monkeypatch):
     _use(monkeypatch, FakeModels(fail=True))
-    text, messages, remember, page, files, _ = asyncio.run(eli5.respond(_text_content("Why?")))
+    text, messages, remember, page, files, *_ = asyncio.run(eli5.respond(_text_content("Why?")))
     validate.check(messages)
     assert remember is None and page is None
     assert eli5.parse(_components(messages)["retry"]["action"]["event"]["context"]["prompt"], None) == ("Why?", "expert")
@@ -296,7 +323,7 @@ def test_parse_document_questions(text, expected):
 
 def test_bare_upload_explains_the_document_without_search(fake):
     docs = document.from_content(_upload("policy.pdf", "application/pdf", b"%PDF-1.7 ..."))
-    text, messages, remember, page, files, _ = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
+    text, messages, remember, page, files, *_ = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
     validate.check(messages)
     assert remember == {"question": "Explain this document", "level": "expert"}
     contents, config = fake.calls[0]
@@ -542,3 +569,115 @@ def test_theme_switch_is_remembered_for_new_answers(fake):
     frame = lambda ev: _components([json.loads(p.inline_data.data[len(a2ui.TAG_START):-len(a2ui.TAG_END)])["data"]  # noqa: E731
                                     for p in ev[0].content.parts[1:]])["frame"]["htmlContent"]
     assert '<body class="t-creative"' in frame(first) and '<body class="t-ai"' in frame(third)
+
+
+# ---- Create: posters, emails, social posts, one-pagers ----
+
+@pytest.mark.parametrize("text,kind", [
+    ("Create a poster for our AI training week", "poster"),
+    ("can you draft an email inviting the team to a town hall", "email"),
+    ("Write a LinkedIn post about our new office", "social"),
+    ("Make a one-pager on the audit timeline", "flyer"),
+    ("please design a flyer for the charity run", "flyer"),
+    ("Turn this into a poster", "poster"),
+    ("Draft an invitation for the offsite", None),
+])
+def test_create_requests_are_recognised(text, kind):
+    assert eli5.create_request(text) == (text, kind)
+
+
+@pytest.mark.parametrize("text", ["Why is the sky blue?", "Explain how email works", "make it simpler",
+                                  "What is a poster session?", "switch to the AI theme"])
+def test_questions_are_not_create_requests(text):
+    assert eli5.create_request(text) is None
+
+
+@pytest.mark.parametrize("made", [POSTER, EMAIL, SOCIAL, FLYER], ids=lambda c: c.kind)
+def test_creation_card_validates_and_fits(made):
+    messages = render.creation_card(made, "Create it")
+    validate.check(messages)
+    comps = _components(messages)
+    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf"]
+    assert comps["pdf"]["action"]["event"]["context"] == {"kind": "create", "request": "Create it", "theme": "creative"}
+    assert a2ui.message_bytes(messages[1]) < 400_000
+    page = comps["frame"]["htmlContent"]
+    assert made.title.split()[0] in page and "Turn it into" in page and "Change it" in page
+    assert ("<textarea" in page) == (made.kind in ("email", "social"))
+
+
+def test_plain_text_email_and_post():
+    text = maker.plain_text(EMAIL)
+    assert text.startswith("Subject: Town hall: [Date]\n\nDear colleagues,") and text.endswith("Kind regards,\n[Your name]")
+    assert "- Strategy" in text and "When: [Date], [Time]" in text
+    assert maker.plain_text(SOCIAL).endswith("#KPMG #AI #Learning")
+
+
+def test_create_request_makes_a_poster_without_search(fake):
+    reply = asyncio.run(eli5.respond(_text_content("Create a poster for our AI training week")))
+    assert reply.text.startswith("**AI Training Week is here** (Poster)") and reply.made["request"].startswith("Create a poster")
+    contents, config = fake.calls[0]
+    assert config.response_schema is Creation and not config.tools
+    prompt = contents[0].parts[-1].text
+    assert "Never invent names" in prompt and "probably poster" in prompt and "neon-corridor" in prompt
+
+
+def test_email_is_also_given_in_chat_to_copy(fake):
+    reply = asyncio.run(eli5.respond(_text_content("Draft an email inviting everyone to the town hall")))
+    assert reply.text.startswith("**Join our town hall** (Email)") and "Subject: Town hall: [Date]" in reply.text
+
+
+def test_tweak_edits_the_last_creation(fake):
+    made = {"request": "Create a poster for AI week", "creation": POSTER.model_dump(mode="json")}
+    reply = asyncio.run(eli5.respond(_text_content("make it more formal"), made=made, mode="create"))
+    prompt = fake.calls[0][0][0].parts[-1].text
+    assert "changing this earlier draft" in prompt and "AI Training Week is here" in prompt and "make it more formal" in prompt
+    assert reply.made["request"] == "Create a poster for AI week"  # changes keep the original request
+
+
+def test_tweak_words_after_an_explanation_still_explain(fake):
+    made = {"request": "Create a poster", "creation": POSTER.model_dump(mode="json")}
+    asyncio.run(eli5.respond(_text_content("make it simpler"), {"question": Q, "level": "expert"}, made=made, mode="explain"))
+    assert fake.calls[0][1].response_schema is Explanation
+
+
+def test_turn_a_briefing_into_a_poster_uses_the_briefing(fake):
+    page = {"question": Q, "level": "expert", "explanation": SKY.model_dump(mode="json"), "sources": [], "documents": []}
+    asyncio.run(eli5.respond(_text_content("Turn this into a poster"), {"question": Q, "level": "expert"}, pages=[page], mode="explain"))
+    prompt = fake.calls[0][0][0].parts[-1].text
+    assert "Briefing the user just read" in prompt and SKY.title in prompt
+
+
+def _create_click(prompt, request="Create a poster for AI week"):
+    return _click_content({"name": "create", "context": {"prompt": prompt, "request": request}})
+
+
+def test_create_session_flow_theme_pdf_and_change(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        out = []
+        for msg in (_text_content("Create a poster for AI week"),
+                    _click_content({"name": "theme", "context": {"prompt": "x", "theme": "ai", "kind": "create",
+                                                                 "request": "Create a poster for AI week"}}),
+                    _click_content({"name": "pdf", "context": {"kind": "create", "request": "x", "theme": "ai"}}),
+                    _create_click("Turn it into an email"),
+                    _text_content("use the corporate theme")):
+            out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
+        session = await runner.session_service.get_session(app_name="eli5", user_id="u", session_id=session.id)
+        return out, session.state
+
+    (made, themed, pdf_reply, changed, typed), state = asyncio.run(run())
+    assert themed[0].content.parts[0].text == "**AI Training Week is here** in the KPMG AI theme."
+    blob = pdf_reply[0].content.parts[1].inline_data
+    assert blob.mime_type == "application/pdf" and blob.data.startswith(b"%PDF")
+    assert len(fake.calls) == 2  # the poster and the change; theme and PDF need no model call
+    assert "changing this earlier draft" in fake.calls[1][0][0].parts[-1].text
+    assert typed[0].content.parts[0].text.endswith("in the KPMG Corporate theme.")
+    assert state[eli5.MODE_KEY] == "create" and state[eli5.THEME_KEY] == "corporate"
+
+
+@pytest.mark.parametrize("made", [POSTER, EMAIL, SOCIAL, FLYER], ids=lambda c: c.kind)
+@pytest.mark.parametrize("theme", ["creative", "corporate"])
+def test_creation_pdfs_build(made, theme):
+    data = pdf.build_creation(made.model_copy(update={"theme": theme}))
+    assert data.startswith(b"%PDF") and len(data) < 900_000

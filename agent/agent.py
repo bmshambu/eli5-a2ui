@@ -10,6 +10,9 @@ Documents: when the user uploads a file in GE chat, the page explains that docum
 search), following its structure. Later turns in the session keep using the latest document.
 "Download PDF" (a native button under the page) rebuilds the PDF from the explanation kept in
 session state and sends it back as a file. Greetings and empty turns get the welcome card. AGENT_MODE=probe serves the step 0 probe.
+Create: "create a poster / draft an email / write a LinkedIn post / make a one-pager ..." makes
+that thing in the same brand (maker.py) instead of explaining. "Turn this into a poster" after a
+briefing works from that briefing; "make it shorter" or a change button after a creation edits it.
 """
 import logging
 import os
@@ -21,9 +24,9 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types as genai_types
 
-from . import a2ui, document, explainer, llm, pdf, render, validate
+from . import a2ui, document, explainer, llm, maker, pdf, render, validate
 from .brand import DEFAULT_THEME, THEMES
-from .schema import DEFAULT_LEVEL, LEVELS, Explanation
+from .schema import DEFAULT_LEVEL, KINDS, LEVELS, Creation, Explanation
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +35,8 @@ STATE_KEY = "eli5_last"  # {"question": str, "level": str}
 THEME_KEY = "eli5_theme"  # the theme the user last switched to; new answers use it (default Creative)
 PAGES_KEY = "eli5_pages"  # the last few explanations shown, so "Download PDF" needs no new model call
 MAX_PAGES = 4
+CREATE_KEY = "eli5_create"  # {"request": str, "creation": dict}: the last thing made, so changes edit it
+MODE_KEY = "eli5_mode"  # "create" or "explain": what the last answer was, so "make it shorter" goes to the right place
 DOC_QUESTION = explainer.DOC_QUESTION
 
 _GREETING = re.compile(r"^(hi|hello|hey|help|start|menu|what can you do\??|who are you\??)[!. ]*$", re.I)
@@ -113,6 +118,30 @@ class Reply(NamedTuple):
     page: dict | None = None  # the explanation shown, for PAGES_KEY
     files: tuple = ()  # file parts, e.g. the PDF
     theme: str | None = None  # new THEME_KEY value, when the user switched theme
+    made: dict | None = None  # new CREATE_KEY value, when something was created
+
+
+# "create a poster for ...", "draft an email to ...", "write a LinkedIn post about ...", "turn this into a one-pager"
+_CREATE = re.compile(r"^\W*(?:(?:please|pls|kindly|can\s+you|could\s+you|would\s+you)\s+)?(?:help\s+me\s+)?(?:i\s+(?:want|need)\s+(?:you\s+)?(?:to\s+)?)?"
+                     r"(?:create|make|design|draft|write|generate|build|prepare|produce|compose|turn|convert|do)\b.{0,80}?"
+                     r"\b(poster|banner|e-?mail|mail|newsletter|linkedin|social|post|tweet|one[\s-]?pager|flyer|leaflet|"
+                     r"fact\s*sheet|memo|announcement|invite|invitation)s?\b", re.I)
+_KIND_WORDS = {"poster": "poster", "banner": "poster", "email": "email", "e-mail": "email", "mail": "email",
+               "linkedin": "social", "social": "social", "post": "social", "tweet": "social"}
+# A change to the thing just made: "make it shorter", "more formal", "add the date", "use a different photo".
+_TWEAK = re.compile(r"^\W*(?:(?:please|pls|can\s+you|could\s+you|now)\s+)?(?:make|more|less|shorter|longer|change|add|remove|drop|"
+                    r"use|try|rewrite|redo|another|swap|replace|put|mention|include|fix|keep|turn|convert|bolder|simpler|"
+                    r"friendlier|warmer|punchier|formal|casual|tone|translate|shorten|lengthen|update|edit)\b", re.I)
+
+
+def create_request(text: str) -> tuple[str, str | None] | None:
+    """(request, kind or None) when the user asks for something to be made, else None."""
+    text = (text or "").strip()
+    m = _CREATE.search(text)
+    if not m:
+        return None
+    word = re.sub(r"\s+", "", m.group(1).lower())
+    return text[:MAX_QUESTION_CHARS], _KIND_WORDS.get(word, "flyer" if word not in ("invite", "invitation") else None)
 
 
 # "switch to the AI theme", "use the finance data theme", "show it in the corporate look"
@@ -165,6 +194,59 @@ async def switch_theme(ctx: dict, pages: list | None = None, docs: list | None =
                  page, theme=theme)
 
 
+def _made_card(c: Creation, request: str) -> tuple[list[dict], dict]:
+    messages = render.creation_card(c, request)
+    validate.check(messages)
+    return messages, {"request": request, "creation": c.model_dump(mode="json")}
+
+
+def _made_text(c: Creation) -> str:
+    text = f"**{c.title}** ({KINDS[c.kind][0]}): {c.tagline}"
+    if c.kind in ("email", "social"):  # in chat too, so it can be copied from there
+        text += "\n\n" + maker.plain_text(c)
+    return text
+
+
+async def make(request: str, kind: str | None, docs: list | None = None, previous: dict | None = None,
+               page: dict | None = None, theme: str | None = None) -> Reply:
+    """Something made on request (or a change to the last one when `previous` is given)."""
+    try:
+        c = await llm.create(_get_client(), request, kind, docs, (previous or {}).get("creation"), page)
+        c = c.model_copy(update={"theme": theme if theme in THEMES else DEFAULT_THEME})
+        if previous:  # the change applies to the original request
+            request = previous.get("request") or request
+        messages, made = _made_card(c, request)
+    except Exception:  # noqa: BLE001  (the user gets a message, not a broken turn)
+        log.exception("create failed for %r", request)
+        return Reply("Sorry, I couldn't make that. Try again, or say it another way.", [])
+    return Reply(_made_text(c), messages, made=made)
+
+
+def switch_made_theme(made: dict | None, theme: str) -> Reply:
+    """The last creation re-shown in another theme (no model call)."""
+    if not made or theme not in THEMES:
+        return Reply("Sorry, I couldn't tell what to restyle. Ask for it again.", [])
+    c = Creation.model_validate(made["creation"]).model_copy(update={"theme": theme})
+    messages, made = _made_card(c, made["request"])
+    return Reply(f"**{c.title}** in the {THEMES[theme].name} theme.", messages, made=made, theme=theme)
+
+
+def made_pdf(made: dict | None, theme: str | None = None) -> Reply:
+    if not made:
+        return Reply("Sorry, I couldn't find that draft any more. Ask for it again.", [])
+    try:
+        c = Creation.model_validate(made["creation"])
+        if theme in THEMES:
+            c = c.model_copy(update={"theme": theme})
+        data = pdf.build_creation(c)
+    except Exception:  # noqa: BLE001
+        log.exception("creation pdf failed")
+        return Reply("Sorry, I couldn't make the PDF. Try the Download PDF button again.", [])
+    name = pdf.filename(c.title)
+    part = genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=data, display_name=name))
+    return Reply(f"Here is **{c.title}** ({KINDS[c.kind][0]}) as a PDF: {name}", [], files=(part,))
+
+
 async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None = None) -> Reply:
     """The PDF of the explanation the button was under. It is rebuilt from session state; an
     explanation that is no longer there (an old card) is made again."""
@@ -187,18 +269,37 @@ async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None =
 
 
 async def respond(content, last: dict | None = None, docs: list | None = None, pages: list | None = None,
-                  theme: str | None = None) -> Reply:
+                  theme: str | None = None, made: dict | None = None, mode: str | None = None) -> Reply:
     """The reply to this turn. `docs` are the documents to explain from (this turn's upload, or
     the latest one in the session); `pages` are the explanations shown earlier (for the PDF and
-    theme switches); `theme` is the theme the user last switched to (Creative if none)."""
+    theme switches); `theme` is the theme the user last switched to (Creative if none); `made`
+    is the last thing created and `mode` whether the last answer was a creation or an explanation."""
     action = a2ui.extract_action(content)
+    ctx = (action or {}).get("context") or {}
     if action and action.get("name") == render.PDF_ACTION:
-        return await download_pdf(action.get("context") or {}, pages, docs)
+        return made_pdf(made, ctx.get("theme")) if ctx.get("kind") == "create" else await download_pdf(ctx, pages, docs)
     if action and action.get("name") == explainer.THEME_ACTION:
-        return await switch_theme(action.get("context") or {}, pages, docs)
-    m = None if action else _THEME_TEXT.match(_user_text(content))
+        return switch_made_theme(made, ctx.get("theme")) if ctx.get("kind") == "create" else await switch_theme(ctx, pages, docs)
+    if action and action.get("name") == maker.CREATE_ACTION:
+        change = str(ctx.get("prompt") or "")[:MAX_QUESTION_CHARS]
+        if made and change:
+            return await make(change, (create_request(change) or (None, None))[1], docs, made, theme=theme)
+        return await make(str(ctx.get("request") or change), None, docs, theme=theme)
+    text = "" if action else _user_text(content)
+    creating = mode == "create" and made
+    m = _THEME_TEXT.match(text) if text else None
+    if m and creating:
+        return switch_made_theme(made, _theme_id(m.group(1)))
     if m and last:
         return await switch_theme({**last, "theme": _theme_id(m.group(1))}, pages, docs)
+    wanted = create_request(text) if text else None
+    if wanted:
+        refers = re.search(r"\b(?:this|it|that|above)\b", text, re.I)
+        previous = made if creating and refers else None
+        brief = pages[-1] if pages and not creating and refers else None
+        return await make(wanted[0], wanted[1], docs, previous, brief, theme)
+    if creating and text and _TWEAK.match(text):
+        return await make(text[:MAX_QUESTION_CHARS], None, docs, made, theme=theme)
     asked = question_for(content, last)
     if docs and asked is None:
         # A bare upload (or "hi", or "simpler" with nothing asked yet) means: explain the document.
@@ -226,13 +327,17 @@ class Eli5Agent(BaseAgent):
         last = None if uploaded else ctx.session.state.get(STATE_KEY)
         docs = uploaded or document.latest(ctx.session.events)
         pages = ctx.session.state.get(PAGES_KEY) or []
-        reply = await respond(ctx.user_content, last, docs, pages, ctx.session.state.get(THEME_KEY))
+        state = ctx.session.state
+        reply = await respond(ctx.user_content, last, docs, pages, state.get(THEME_KEY), state.get(CREATE_KEY), state.get(MODE_KEY))
         validate.check(reply.messages)
         parts = [genai_types.Part(text=reply.text), *reply.files] + [a2ui.to_genai_part(m) for m in reply.messages]
         delta = {STATE_KEY: reply.remember} if reply.remember else {}
         if reply.theme:
             delta[THEME_KEY] = reply.theme
+        if reply.made:
+            delta[CREATE_KEY], delta[MODE_KEY] = reply.made, "create"
         if reply.page:
+            delta[MODE_KEY] = "explain"
             key = (reply.page["question"], reply.page["level"])
             delta[PAGES_KEY] = [p for p in pages if (p.get("question"), p.get("level")) != key][-(MAX_PAGES - 1):] + [reply.page]
         yield Event(
@@ -247,4 +352,5 @@ class Eli5Agent(BaseAgent):
 if os.getenv("AGENT_MODE") == "probe":
     from .probe_agent import probe_agent as root_agent
 else:
-    root_agent = Eli5Agent(name="eli5", description="Explains any topic as a detailed expert briefing, with a simpler version on request.")
+    root_agent = Eli5Agent(name="eli5", description="Explains any topic as a detailed expert briefing, with a simpler version on request, "
+                                              "and creates on-brand posters, emails, social posts and one-pagers.")
