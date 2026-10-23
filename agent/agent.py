@@ -295,7 +295,14 @@ async def respond(content, last: dict | None = None, docs: list | None = None, p
         if made and change:
             return await make(change, (create_request(change) or (None, None))[1], docs, made, theme=theme)
         return await make(str(ctx.get("request") or change), None, docs, theme=theme)
-    text = "" if action else _user_text(content)
+    # What the user "said": typed text, or the prompt of a button that only carries a prompt (the
+    # welcome examples and follow-up chips), so "Create a poster…" from a button creates too.
+    if action is None:
+        text = _user_text(content)
+    elif action.get("name") == explainer.ASK_ACTION and not ctx.get("question"):
+        text = str(ctx.get("prompt") or "")
+    else:
+        text = ""
     creating = mode == "create" and made
     m = _THEME_TEXT.match(text) if text else None
     if m and creating:

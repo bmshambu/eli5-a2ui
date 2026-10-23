@@ -741,3 +741,17 @@ def test_cards_offer_both_downloads():
         comps = _components(messages)
         assert comps["pptx"]["label"] == "Download PowerPoint" and comps["pptx"]["action"]["event"]["name"] == "pptx"
         assert comps["pptx"]["action"]["event"]["context"] == comps["pdf"]["action"]["event"]["context"]
+
+
+@pytest.mark.parametrize("prompt", list(render.EXAMPLES[-2:]))
+def test_create_examples_on_the_welcome_card_create(fake, prompt):
+    """The welcome card's create examples are buttons (an ask action with only a prompt)."""
+    button = next(c for c in _components(render.welcome_card()).values() if c.get("label") == prompt)
+    reply = asyncio.run(eli5.respond(_click_content({"name": "ask", "context": button["action"]["event"]["context"]})))
+    assert reply.made and fake.calls[0][1].response_schema is Creation
+
+
+def test_level_buttons_still_explain(fake):
+    ctx = {"prompt": "Explain it in a simpler way: Create a poster", "question": "Create a poster", "level": "eli5"}
+    asyncio.run(eli5.respond(_click_content({"name": "ask", "context": ctx})))
+    assert fake.calls[0][1].response_schema is Explanation
