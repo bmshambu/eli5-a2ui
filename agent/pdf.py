@@ -81,8 +81,12 @@ _S = {
 _QUOTE = {'"': "&quot;"}
 
 
+# Emoji, variation selectors and joiners: the embedded font has no colour emoji, so they are dropped.
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]")
+
+
 def _x(text) -> str:
-    return escape(str(text or ""))
+    return escape(_EMOJI.sub("", str(text or "")).strip())
 
 
 def _p(text, style="body") -> Paragraph:
@@ -319,7 +323,11 @@ def build(e: Explanation, sources: list[dict], level: str = "expert", documents=
         canvas.saveState()
         top = H - COVER_H
         canvas.drawImage(_photo(e.hero_photo), (W - COVER_H * 2.5) / 2, top, COVER_H * 2.5, COVER_H)  # 5:2 crops, centred
-        wash, alpha, eyebrow_colour, hl = COVERS.get(e.theme, COVERS["corporate"])
+        if e.theme == "creative":  # the topic's accent colour
+            a1, _, _, ah = brand.ACCENTS.get(e.accent, brand.ACCENTS["cobalt"])
+            wash, alpha, eyebrow_colour, hl = colors.HexColor(a1), 0.8, colors.HexColor(ah), colors.HexColor(ah)
+        else:
+            wash, alpha, eyebrow_colour, hl = COVERS.get(e.theme, COVERS["corporate"])
         canvas.setFillColor(wash)
         canvas.setFillAlpha(alpha)
         canvas.rect(0, top, W, COVER_H, stroke=0, fill=1)

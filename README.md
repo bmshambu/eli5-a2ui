@@ -19,9 +19,21 @@ The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layou
 
 **Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full. When "reduce motion" is on (Windows "Animation effects" off, common on managed laptops), the page keeps only fades and count-ups, and a **Play motion** button on the cover turns the full motion poster on.
 
+## Creative look (default)
+
+New answers use the **Creative** look, which mixes the whole brand library instead of following one recipe. The model does the art direction for each topic, so different topics look different:
+- an `accent` from the 2026 palette (cobalt, pacific, purple or magenta), which tints the cover gradient, numbers, bullets and diagrams;
+- a `cover_style`:
+  - `poster`: one big photo;
+  - `split`: a colour block beside a slanted photo;
+  - `mosaic`: the cover photo plus two section photos as slowly zooming tiles;
+- an `emoji` for the cover (large and bobbing), one per section (badge next to the heading) and one per key stat.
+
+Motion is livelier too: drifting colour blobs, a shifting cover gradient, and sections that slide in from alternate sides. It still follows the "reduce motion" rules and the **Play motion** button. Emojis appear only in the Creative look. The PDF leaves them out, because its font cannot draw them, and uses the accent colour on its cover. When the user switches to another theme (below), later answers in that session keep that theme (`eli5_theme` in session state).
+
 ## Themes
 
-Each answer uses one of the four KPMG theme recipes in `brand/extract/08-themes`. Each recipe is a `.recipe.md` file with a `.demo.tsx` live preview, and `index.html` there shows all four. The model picks the theme with the `theme` field and takes the cover photo from that theme's list in `brand.THEMES`:
+The theme row also offers the four KPMG theme recipes in `brand/extract/08-themes`. Each recipe is a `.recipe.md` file with a `.demo.tsx` live preview, and `index.html` there shows all four. The model picks the theme with the `theme` field and takes the cover photo from that theme's list in `brand.THEMES`:
 
 | Theme | Used for | On the page |
 |---|---|---|

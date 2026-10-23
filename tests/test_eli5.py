@@ -95,7 +95,7 @@ def test_expert_page_is_branded_and_offers_eli5():
     assert 'class="logo"' in page and "Explained · Expert" in page and "KPMG. Make the Difference." in page
     assert page.count('<section id="s') == 4 and page.count('class="kpi"') == 4
     assert "Glossary" in page and "Caveats" in page and "Contents" in page
-    assert page.count("data-q=") == 1 + 3 + 3  # simpler, follow-ups, the 3 other themes
+    assert page.count("data-q=") == 1 + 3 + 4  # simpler, follow-ups, the 4 other themes
     assert "ELI10" not in page and "Go deeper" not in page and "a2ui_action" in page
     ctx = json.loads(explainer.html.unescape(page.split('class="primary"')[1].split('data-ctx="')[1].split('"')[0]))
     assert ctx == {"prompt": "Explain it in a simpler way: " + Q, "level": "eli5", "question": Q}
@@ -114,8 +114,9 @@ def test_section_photos_capped_and_never_repeat_cover():
     assert page.count(brand.photo_uri(SKY.hero_photo)) == 1
 
 
-def test_page_has_no_emoji():
-    assert not any(ord(ch) >= 0x1F300 for ch in explainer.page(SKY, SOURCES, Q))
+def test_kpmg_themes_have_no_emoji_but_creative_does():
+    assert not any(ord(ch) >= 0x1F300 for ch in explainer.page(SKY.model_copy(update={"theme": "corporate"}), SOURCES, Q))
+    assert "\U0001F4A1" in explainer.page(SKY, SOURCES, Q)  # the default creative look
 
 
 def test_page_escapes_model_text():
@@ -217,7 +218,7 @@ def test_falls_back_to_two_calls_when_model_cannot_combine(monkeypatch):
 
 def test_respond_failure_gives_retry_card(monkeypatch):
     _use(monkeypatch, FakeModels(fail=True))
-    text, messages, remember, page, files = asyncio.run(eli5.respond(_text_content("Why?")))
+    text, messages, remember, page, files, _ = asyncio.run(eli5.respond(_text_content("Why?")))
     validate.check(messages)
     assert remember is None and page is None
     assert eli5.parse(_components(messages)["retry"]["action"]["event"]["context"]["prompt"], None) == ("Why?", "expert")
@@ -295,7 +296,7 @@ def test_parse_document_questions(text, expected):
 
 def test_bare_upload_explains_the_document_without_search(fake):
     docs = document.from_content(_upload("policy.pdf", "application/pdf", b"%PDF-1.7 ..."))
-    text, messages, remember, page, files = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
+    text, messages, remember, page, files, _ = asyncio.run(eli5.respond(_upload("policy.pdf", "application/pdf", b"%PDF"), None, docs))
     validate.check(messages)
     assert remember == {"question": "Explain this document", "level": "expert"}
     contents, config = fake.calls[0]
@@ -343,7 +344,7 @@ def test_page_has_motion_poster_that_respects_reduced_motion():
 def test_card_has_native_download_pdf_button():
     comps = _components(render.explanation_card(SKY, SOURCES, Q, "eli5"))
     assert comps["pdf"]["label"] == "Download PDF" and "pdf" in comps["root"]["children"]
-    assert comps["pdf"]["action"]["event"] == {"name": "pdf", "context": {"question": Q, "level": "eli5", "theme": "corporate"}}
+    assert comps["pdf"]["action"]["event"] == {"name": "pdf", "context": {"question": Q, "level": "eli5", "theme": "creative"}}
     assert comps["root"]["cardTitle"].endswith("· Simpler")
 
 
@@ -434,7 +435,7 @@ def test_chart_appears_in_its_section():
 def test_every_theme_styles_the_page_and_pdf(theme):
     x = SKY.model_copy(update={"theme": theme, "hero_photo": brand.THEMES[theme].heroes[0]})
     page = explainer.page(x, [], Q)
-    assert f'<body class="t-{theme}">' in page
+    assert f'<body class="t-{theme}"' in page
     assert all(h in brand.PHOTO_IDS for h in brand.THEMES[theme].heroes)
     assert pdf.build(x, [], "expert").startswith(b"%PDF")
 
@@ -446,19 +447,19 @@ def test_finance_theme_puts_three_figures_on_the_cover():
     assert page.count('class="kpi"') == max(len(SKY.key_stats) - 3, 0) and 'class="tabs"' in page
 
 
-def test_theme_defaults_to_corporate_and_is_offered_to_the_model(fake):
-    assert Explanation.model_validate_json(SKY.model_copy(update={}).model_dump_json(exclude={"theme"})).theme == "corporate"
+def test_theme_defaults_to_creative_and_is_offered_to_the_model(fake):
+    assert Explanation.model_validate_json(SKY.model_copy(update={}).model_dump_json(exclude={"theme"})).theme == "creative"
     asyncio.run(llm.explain(eli5._client, Q))
     assert "finance-data" in json.dumps(Explanation.model_json_schema())
-    assert "Choose the theme" in fake.calls[0][0]
+    assert "Art direction" in fake.calls[0][0]
 
 
 def test_page_offers_the_other_themes():
     page = explainer.page(SKY.model_copy(update={"theme": "ai"}), [], Q)
     bar = page.split('class="themes"')[1].split("</div>")[0]
-    assert 'aria-current="true">AI<' in bar and bar.count('data-action="theme"') == 3
+    assert 'aria-current="true">AI<' in bar and bar.count('data-action="theme"') == 4
     ctx = json.loads(explainer.html.unescape(bar.split('data-ctx="')[1].split('"')[0]))
-    assert ctx == {"prompt": "Show this in the KPMG Corporate theme", "theme": "corporate", "question": Q, "level": "expert"}
+    assert ctx == {"prompt": "Show this in the KPMG Creative theme", "theme": "creative", "question": Q, "level": "expert"}
 
 
 def _theme_click(theme, question=Q, level="expert"):
@@ -479,7 +480,7 @@ def test_theme_switch_reuses_the_explanation_without_a_model_call(fake):
     assert switched[0].content.parts[0].text == "**Why is the sky blue?** in the KPMG Finance Data theme."
     page = _components([json.loads(p.inline_data.data[len(a2ui.TAG_START):-len(a2ui.TAG_END)])["data"]
                         for p in switched[0].content.parts[1:]])["frame"]["htmlContent"]
-    assert '<body class="t-finance-data">' in page and brand.photo_uri("finance-dollar") in page
+    assert '<body class="t-finance-data"' in page and brand.photo_uri("finance-dollar") in page
     assert pdf_reply[0].content.parts[1].inline_data.mime_type == "application/pdf"
     assert typed[0].content.parts[0].text.endswith("in the KPMG AI theme.")
 
@@ -498,3 +499,46 @@ def test_with_theme_keeps_a_fitting_cover_photo():
 def test_typed_theme_switch(text, theme):
     m = eli5._THEME_TEXT.match(text)
     assert (eli5._theme_id(m.group(1)) if m else None) == theme
+
+
+# --- the default Creative look ---------------------------------------------------------------
+
+def _creative(**upd):
+    secs = [s.model_copy(update={"emoji": "☀️", "photo": p}) for s, p in zip(SKY.sections, ["neon-silk", "glass-rings", None, None])]
+    return SKY.model_copy(update={"sections": secs, "emoji": "\U0001F324️", "theme": "creative", **upd})
+
+
+def test_creative_is_the_default_with_accent_emoji_and_motion():
+    page = explainer.page(_creative(accent="magenta"), [], Q)
+    assert '<body class="t-creative" style="--a1:#AB0D82' in page and "class=blobs" in page
+    assert 'class="big-emoji"' in page and 'class="emo"' in page and "cover cv-poster" in page
+
+
+def test_mosaic_cover_moves_section_photos_into_the_cover():
+    page = explainer.page(_creative(cover_style="mosaic"), [], Q)
+    assert "cover cv-mosaic" in page and page.count('class="banner"') == 0
+    assert page.count(brand.photo_uri("neon-silk")) == 1  # in the cover, not repeated as a banner
+    few = SKY.model_copy(update={"theme": "creative", "cover_style": "mosaic",
+                                 "sections": [x.model_copy(update={"photo": None}) for x in SKY.sections]})
+    assert "cover cv-poster" in explainer.page(few, [], Q)
+
+
+def test_emoji_fields_are_sanitised_and_left_out_of_the_pdf():
+    assert explainer._emoji("<b>") == "" and explainer._emoji("rocket") == "" and explainer._emoji("\U0001F680") == "\U0001F680"
+    assert pdf._x("\U0001F680 Launch") == "Launch"
+    assert pdf.build(_creative(cover_style="split", accent="purple"), [], "expert").startswith(b"%PDF")
+
+
+def test_theme_switch_is_remembered_for_new_answers(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        out = []
+        for msg in (_text_content(Q), _theme_click("ai"), _text_content("How do rainbows form?")):
+            out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
+        return out
+
+    first, _, third = asyncio.run(run())
+    frame = lambda ev: _components([json.loads(p.inline_data.data[len(a2ui.TAG_START):-len(a2ui.TAG_END)])["data"]  # noqa: E731
+                                    for p in ev[0].content.parts[1:]])["frame"]["htmlContent"]
+    assert '<body class="t-creative"' in frame(first) and '<body class="t-ai"' in frame(third)

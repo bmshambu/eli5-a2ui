@@ -219,6 +219,8 @@ class Theme(NamedTuple):
 # The KPMG theme recipes in brand/extract/08-themes. Each answer uses one; the page and the
 # PDF follow its palette and layout rules (explainer.THEME_CSS, pdf.COVERS).
 THEMES = {
+    "creative": Theme("KPMG Creative", "the default: a livelier look that mixes the whole brand library, with an "
+                      "accent colour, cover style and emojis chosen for each topic.", PHOTO_IDS),
     "corporate": Theme("KPMG Corporate", "the everyday KPMG look: proposals, reports, policies and any topic "
                        "without a stronger flavour. Use it when unsure.",
                        ("walk-through-frames", "frames-in-clouds", "light-tunnel", "mirror-hall")),
@@ -232,8 +234,18 @@ THEMES = {
                           ("finance-dollar", "glass-towers", "chart-landscape", "blue-diagonals")),
 }
 THEME_IDS = tuple(THEMES)
-DEFAULT_THEME = "corporate"
-THEME_HELP = "; ".join(f"{k} = {t.use_for} Cover photos: {', '.join(t.heroes)}" for k, t in THEMES.items())
+DEFAULT_THEME = "creative"
+
+# Creative theme accents from the 2026 palette: (main, second, third, light highlight on dark).
+ACCENTS = {
+    "cobalt": (COBALT, PACIFIC, PURPLE, PALE_BLUE),
+    "pacific": (PACIFIC, COBALT, LIGHT_BLUE, PALE_BLUE),
+    "purple": (PURPLE, LIGHT_PURPLE, COBALT, LIGHT_PURPLE),
+    "magenta": (MAGENTA, PURPLE, PACIFIC, LIGHT_PURPLE),
+}
+ACCENT_IDS = tuple(ACCENTS)
+THEME_HELP = "; ".join(f"{k} = {t.use_for}" + ("" if k == "creative" else f" Cover photos: {', '.join(t.heroes)}")
+                       for k, t in THEMES.items())
 
 
 def catalogue() -> str:

@@ -40,9 +40,10 @@ diagram, keep its paragraphs short and let the visual carry the detail. Choose p
 list of brand photos, by id; pick the closest fit, use each photo at most once, and give at
 most 2 sections a photo:
 {photos}
-Choose the theme that fits the topic (AI topics: ai; platforms and architectures: ai-platform;
-finance and numbers-led material: finance-data; anything else: corporate) and take the cover photo
-from that theme's list.
+Art direction (the creative look): use theme creative, and pick an accent, a cover_style and emojis
+that suit this topic, so different topics look different. Give the cover one emoji, each section one
+emoji and each key stat one emoji, all standard Unicode and apt (no faces for serious topics). Emojis go
+only in those emoji fields, never in the text. Choose photos from the whole catalogue.
 The 3 follow_ups are natural next questions on new angles, each a full question under 70
 characters. Do not offer a simpler or deeper explanation as a follow-up: the page already has that."""
 
