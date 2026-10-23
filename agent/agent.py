@@ -8,8 +8,8 @@ or the old "like I'm 5"). The last question and level are kept in session state 
 alone works, and "go deeper" goes back to Expert.
 Documents: when the user uploads a file in GE chat, the page explains that document (no web
 search), following its structure. Later turns in the session keep using the latest document.
-"Download PDF" (a native button under the page) rebuilds the PDF from the explanation kept in
-session state and sends it back as a file. Greetings and empty turns get the welcome card. AGENT_MODE=probe serves the step 0 probe.
+"Download PDF" and "Download PowerPoint" (native buttons under the page) rebuild the file from
+the explanation kept in session state and send it back as a file. Greetings and empty turns get the welcome card. AGENT_MODE=probe serves the step 0 probe.
 Create: "create a poster / draft an email / write a LinkedIn post / make a one-pager ..." makes
 that thing in the same brand (maker.py) instead of explaining. "Turn this into a poster" after a
 briefing works from that briefing; "make it shorter" or a change button after a creation edits it.
@@ -24,7 +24,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types as genai_types
 
-from . import a2ui, document, explainer, llm, maker, pdf, render, validate
+from . import a2ui, document, explainer, llm, maker, pdf, render, slides, validate
 from .brand import DEFAULT_THEME, THEMES
 from .schema import DEFAULT_LEVEL, KINDS, LEVELS, Creation, Explanation
 
@@ -194,6 +194,19 @@ async def switch_theme(ctx: dict, pages: list | None = None, docs: list | None =
                  page, theme=theme)
 
 
+# Download formats: file builders for an explanation and for a creation, mime type, name, label.
+FORMATS = {
+    render.PDF_ACTION: (pdf.build, pdf.build_creation, "application/pdf", pdf.filename, "a PDF"),
+    render.PPTX_ACTION: (slides.build, slides.build_creation, slides.MIME, slides.filename, "a PowerPoint deck"),
+}
+
+
+def _file(fmt: str, data: bytes, title: str) -> tuple[str, genai_types.Part]:
+    name = FORMATS[fmt][3](title)
+    log.info("%s %s: %d bytes", fmt, name, len(data))
+    return name, genai_types.Part(inline_data=genai_types.Blob(mime_type=FORMATS[fmt][2], data=data, display_name=name))
+
+
 def _made_card(c: Creation, request: str) -> tuple[list[dict], dict]:
     messages = render.creation_card(c, request)
     validate.check(messages)
@@ -231,25 +244,24 @@ def switch_made_theme(made: dict | None, theme: str) -> Reply:
     return Reply(f"**{c.title}** in the {THEMES[theme].name} theme.", messages, made=made, theme=theme)
 
 
-def made_pdf(made: dict | None, theme: str | None = None) -> Reply:
+def made_file(made: dict | None, theme: str | None = None, fmt: str = render.PDF_ACTION) -> Reply:
+    """The last creation as a PDF or PowerPoint file."""
     if not made:
         return Reply("Sorry, I couldn't find that draft any more. Ask for it again.", [])
     try:
         c = Creation.model_validate(made["creation"])
         if theme in THEMES:
             c = c.model_copy(update={"theme": theme})
-        data = pdf.build_creation(c)
+        name, part = _file(fmt, FORMATS[fmt][1](c), c.title)
     except Exception:  # noqa: BLE001
-        log.exception("creation pdf failed")
-        return Reply("Sorry, I couldn't make the PDF. Try the Download PDF button again.", [])
-    name = pdf.filename(c.title)
-    part = genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=data, display_name=name))
-    return Reply(f"Here is **{c.title}** ({KINDS[c.kind][0]}) as a PDF: {name}", [], files=(part,))
+        log.exception("creation %s failed", fmt)
+        return Reply(f"Sorry, I couldn't make {FORMATS[fmt][4]}. Try the download button again.", [])
+    return Reply(f"Here is **{c.title}** ({KINDS[c.kind][0]}) as {FORMATS[fmt][4]}: {name}", [], files=(part,))
 
 
-async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None = None) -> Reply:
-    """The PDF of the explanation the button was under. It is rebuilt from session state; an
-    explanation that is no longer there (an old card) is made again."""
+async def download_file(ctx: dict, pages: list | None = None, docs: list | None = None, fmt: str = render.PDF_ACTION) -> Reply:
+    """The PDF or PowerPoint of the explanation the button was under. It is rebuilt from session
+    state; an explanation that is no longer there (an old card) is made again."""
     question = str(ctx.get("question") or "")[:MAX_QUESTION_CHARS]
     level = ctx.get("level") if ctx.get("level") in LEVELS else DEFAULT_LEVEL
     if not question:
@@ -258,14 +270,11 @@ async def download_pdf(ctx: dict, pages: list | None = None, docs: list | None =
         expl, sources, names = await _shown(question, level, pages, docs)
         if ctx.get("theme") in THEMES:  # the theme of the card the button was under
             expl = with_theme(expl, ctx["theme"])
-        data = pdf.build(expl, sources, level, names)
+        name, part = _file(fmt, FORMATS[fmt][0](expl, sources, level, names), expl.title)
     except Exception:  # noqa: BLE001  (the user gets a message, not a broken turn)
-        log.exception("pdf failed for %r at %s", question, level)
-        return Reply("Sorry, I couldn't make the PDF. Try the Download PDF button again.", [])
-    name = pdf.filename(expl.title)
-    log.info("pdf %s: %d bytes", name, len(data))
-    part = genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=data, display_name=name))
-    return Reply(f"Here is **{expl.title}** ({LEVELS[level][0]}) as a PDF: {name}", [], files=(part,))
+        log.exception("%s failed for %r at %s", fmt, question, level)
+        return Reply(f"Sorry, I couldn't make {FORMATS[fmt][4]}. Try the download button again.", [])
+    return Reply(f"Here is **{expl.title}** ({LEVELS[level][0]}) as {FORMATS[fmt][4]}: {name}", [], files=(part,))
 
 
 async def respond(content, last: dict | None = None, docs: list | None = None, pages: list | None = None,
@@ -276,8 +285,9 @@ async def respond(content, last: dict | None = None, docs: list | None = None, p
     is the last thing created and `mode` whether the last answer was a creation or an explanation."""
     action = a2ui.extract_action(content)
     ctx = (action or {}).get("context") or {}
-    if action and action.get("name") == render.PDF_ACTION:
-        return made_pdf(made, ctx.get("theme")) if ctx.get("kind") == "create" else await download_pdf(ctx, pages, docs)
+    if action and action.get("name") in FORMATS:
+        fmt = action["name"]
+        return made_file(made, ctx.get("theme"), fmt) if ctx.get("kind") == "create" else await download_file(ctx, pages, docs, fmt)
     if action and action.get("name") == explainer.THEME_ACTION:
         return switch_made_theme(made, ctx.get("theme")) if ctx.get("kind") == "create" else await switch_theme(ctx, pages, docs)
     if action and action.get("name") == maker.CREATE_ACTION:

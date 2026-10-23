@@ -4,6 +4,14 @@ from .schema import DEFAULT_LEVEL, KINDS, LEVELS, Creation, Explanation
 
 FRAME_HEIGHT = 1100  # the page scrolls inside the frame when it is longer
 PDF_ACTION = "pdf"  # the agent builds the PDF (pdf.py) and sends it back as a file in chat
+PPTX_ACTION = "pptx"  # the same as a PowerPoint deck (slides.py)
+
+
+def _downloads(context: dict) -> list[dict]:
+    """Native Download PDF / Download PowerPoint buttons (the frame itself can't download)."""
+    return [{"id": a, "component": "MaterialButton", "label": label, "variant": "stroked", "leadingIcon": icon,
+             "action": {"event": {"name": a, "context": context}}}
+            for a, label, icon in ((PDF_ACTION, "Download PDF", "download"), (PPTX_ACTION, "Download PowerPoint", "slideshow"))]
 
 EXAMPLES = (
     "Why is the sky blue?",
@@ -43,12 +51,12 @@ def explanation_card(e: Explanation, sources: list[dict], question: str, level: 
                      documents: list[str] = ()) -> list[dict]:
     """Opener card in chat; the explainer page opens in the side panel. Source links are repeated
     natively under the frame because links inside the sandboxed frame may not open. "Download PDF"
-    is a native button too: the frame can't print or download, so the agent makes the file."""
-    children = ["frame", "pdf"]
+    and "Download PowerPoint" are native buttons too: the frame can't print or download, so the
+    agent makes the file."""
+    children = ["frame", PDF_ACTION, PPTX_ACTION]
     comps = [
         {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": explainer.page(e, sources, question, level, documents), "height": FRAME_HEIGHT},
-        {"id": "pdf", "component": "MaterialButton", "label": "Download PDF", "variant": "stroked", "leadingIcon": "download",
-         "action": {"event": {"name": PDF_ACTION, "context": {"question": question, "level": level, "theme": e.theme}}}},
+        *_downloads({"question": question, "level": level, "theme": e.theme}),
     ]
     if sources:
         links = " · ".join(f"[{i}. {_md_label(s['title'])}]({s['uri']})" for i, s in enumerate(sources, 1))
@@ -63,11 +71,10 @@ def creation_card(c: Creation, request: str) -> list[dict]:
     """A poster, email, social post or one-pager in the side panel, with a native Download PDF."""
     comps = [
         {"id": "frame", "component": "IFrameSrcdoc", "htmlContent": maker.page(c, request), "height": FRAME_HEIGHT},
-        {"id": "pdf", "component": "MaterialButton", "label": "Download PDF", "variant": "stroked", "leadingIcon": "download",
-         "action": {"event": {"name": PDF_ACTION, "context": {"kind": "create", "request": request, "theme": c.theme}}}},
+        *_downloads({"kind": "create", "request": request, "theme": c.theme}),
     ]
     root = {"id": "root", "component": "Canvas", "cardTitle": f"{c.title} · {KINDS[c.kind][0]}", "cardDescription": c.tagline,
-            "cardIcon": "brush", "autoOpen": True, "children": ["frame", "pdf"]}
+            "cardIcon": "brush", "autoOpen": True, "children": ["frame", PDF_ACTION, PPTX_ACTION]}
     return a2ui.surface("eli5-make", [root, *comps])
 
 

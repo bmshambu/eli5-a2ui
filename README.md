@@ -99,9 +99,11 @@ The other three are `cycle`, `parts` and `compare`. All of them are built live i
 
 A section can carry a `chart` (bar, line or donut) when it turns on 3 or more comparable numbers. The prompt allows only numbers stated in the document or the sources, exactly as given, with a `source` note such as "Table 2, p. 7"; if the numbers are not there, there is no chart. Bars and labels are HTML so text stays at 14px or more at any panel width; series that don't match the labels are dropped rather than drawn wrong.
 
-## Download PDF
+## Download PDF and PowerPoint
 
 GE's chat frame blocks printing and downloads, so the page can't save itself. A native **Download PDF** button sits under the frame. Clicking it sends a `pdf` action with the question and level; the agent rebuilds that explanation from session state (`eli5_pages`, the last 4 shown, so no new model call) and `pdf.py` turns it into a KPMG-branded A4 PDF with reportlab: cover with the brand photo and white logo, key stats, sections with charts (vector bar, line, donut) and diagrams (numbered steps, compare columns, 2x2 matrix), caveats, glossary, document name and sources. It uses the embedded Liberation Sans (Arial-metric, OFL, `agent/assets/fonts`) so symbols such as λ and ⁴ render. The PDF goes back in chat as a file part (`application/pdf`), which ADK sends as an A2A FilePart; a PDF for an old card that is no longer in state is explained again first.
+
+**Download PowerPoint** works the same way (`pptx` action, `slides.py`, python-pptx): a 16:9 deck with the cover (photo in the theme or accent colour), an "at a glance" slide with the key stats, one slide per section (key points on the left; the chart as a native, editable PowerPoint chart, the diagram as shapes, or the photo on the right; the full text in the speaker notes), caveats and glossary, sources, and a closing slide. For created content, a poster is one portrait slide and an email, post or one-pager is a cover and a content slide. It goes back as a file part (`application/vnd.openxmlformats-officedocument.presentationml.presentation`).
 
 ## Layout
 

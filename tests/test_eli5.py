@@ -10,7 +10,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, maker, pdf, render, validate, visuals
+from agent import a2ui, agent as eli5, brand, charts, document, explainer, llm, maker, pdf, render, slides, validate, visuals
 from agent.schema import Block, Chart, Creation, Detail, Diagram, DiagramNode, Explanation, Series, Stat
 
 SKY = Explanation.model_validate_json((pathlib.Path(__file__).parent / "fixtures" / "sky.json").read_text())
@@ -97,7 +97,7 @@ def test_explanation_card_validates_and_fits():
     messages = render.explanation_card(SKY, SOURCES, Q)
     validate.check(messages)
     comps = _components(messages)
-    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf", "sources"]
+    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf", "pptx", "sources"]
     assert comps["root"]["cardTitle"].endswith("Expert")
     assert a2ui.message_bytes(messages[1]) < 400_000  # cover + 2 banner photos inline
 
@@ -424,7 +424,7 @@ def test_download_pdf_for_an_old_card_explains_again(fake):
 def test_download_pdf_failure_is_a_message(monkeypatch):
     _use(monkeypatch, FakeModels(fail=True))
     reply = asyncio.run(eli5.respond(_pdf_click(), None, None, []))
-    assert reply.text.startswith("Sorry, I couldn't make the PDF") and not reply.files
+    assert reply.text.startswith("Sorry, I couldn't make a PDF") and not reply.files
 
 
 CHARTS = {
@@ -597,7 +597,7 @@ def test_creation_card_validates_and_fits(made):
     messages = render.creation_card(made, "Create it")
     validate.check(messages)
     comps = _components(messages)
-    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf"]
+    assert comps["root"]["component"] == "Canvas" and comps["root"]["children"] == ["frame", "pdf", "pptx"]
     assert comps["pdf"]["action"]["event"]["context"] == {"kind": "create", "request": "Create it", "theme": "creative"}
     assert a2ui.message_bytes(messages[1]) < 400_000
     page = comps["frame"]["htmlContent"]
@@ -681,3 +681,63 @@ def test_create_session_flow_theme_pdf_and_change(fake):
 def test_creation_pdfs_build(made, theme):
     data = pdf.build_creation(made.model_copy(update={"theme": theme}))
     assert data.startswith(b"%PDF") and len(data) < 900_000
+
+
+# ---- Download PowerPoint ----
+
+def _slides(data):
+    from pptx import Presentation
+    return Presentation(io.BytesIO(data))
+
+
+@pytest.mark.parametrize("theme", list(brand.THEMES))
+def test_pptx_deck_has_every_part(theme):
+    sections = _all_kinds().sections
+    sections = [s.model_copy(update={"chart": CHARTS[k]}) for s, k in zip(sections, CHARTS)] + sections[3:]
+    e = SKY.model_copy(update={"sections": sections, "theme": theme})
+    data = slides.build(e, SOURCES, "expert", ["policy.pdf"])
+    assert data.startswith(b"PK") and len(data) < 900_000  # a .pptx is a zip; under GE's ~1 MB part limit
+    deck = _slides(data)
+    # cover, at a glance, one per section, caveats/glossary, document+sources, closing
+    assert len(deck.slides) == len(sections) + 5
+    charts_in = [sh for s in deck.slides for sh in s.shapes if sh.has_chart]
+    assert len(charts_in) == 3  # native, editable charts
+    text = " ".join(sh.text_frame.text for s in deck.slides for sh in s.shapes if sh.has_text_frame)
+    assert e.title.split()[0] in text and "policy.pdf" in text and "KPMG. Make the Difference." in text
+    assert deck.slides[2].notes_slide.notes_text_frame.text.startswith(sections[0].paragraphs[0][:30])
+    assert slides.filename("Why is the sky blue?") == "Why-is-the-sky-blue.pptx"
+
+
+@pytest.mark.parametrize("made", [POSTER, EMAIL, SOCIAL, FLYER], ids=lambda c: c.kind)
+def test_pptx_for_creations(made):
+    deck = _slides(slides.build_creation(made))
+    assert len(deck.slides) == (1 if made.kind == "poster" else 2)
+    assert (deck.slide_width < deck.slide_height) == (made.kind == "poster")  # the poster is portrait
+    text = " ".join(sh.text_frame.text for s in deck.slides for sh in s.shapes if sh.has_text_frame)
+    assert made.title.split()[0] in text and (made.cta or "") in text
+
+
+def test_download_powerpoint_from_session(fake):
+    async def run():
+        runner = InMemoryRunner(agent=eli5.root_agent, app_name="eli5")
+        session = await runner.session_service.create_session(app_name="eli5", user_id="u")
+        out = []
+        for msg in (_text_content(Q), _click_content({"name": "pptx", "context": {"question": Q, "level": "expert"}}),
+                    _text_content("Create a poster for AI week"),
+                    _click_content({"name": "pptx", "context": {"kind": "create", "request": "x", "theme": "creative"}})):
+            out.append([e async for e in runner.run_async(user_id="u", session_id=session.id, new_message=msg)])
+        return out
+
+    _, deck, _, poster = asyncio.run(run())
+    parts = deck[0].content.parts
+    assert parts[0].text.startswith("Here is **Why is the sky blue?** (Expert) as a PowerPoint deck")
+    assert parts[1].inline_data.mime_type == slides.MIME and parts[1].inline_data.display_name == "Why-is-the-sky-blue.pptx"
+    assert poster[0].content.parts[1].inline_data.display_name == "AI-Training-Week-is-here.pptx"
+    assert len(fake.calls) == 2  # files are rebuilt from session state
+
+
+def test_cards_offer_both_downloads():
+    for messages in (render.explanation_card(SKY, [], Q), render.creation_card(POSTER, "x")):
+        comps = _components(messages)
+        assert comps["pptx"]["label"] == "Download PowerPoint" and comps["pptx"]["action"]["event"]["name"] == "pptx"
+        assert comps["pptx"]["action"]["event"]["context"] == comps["pdf"]["action"]["event"]["context"]

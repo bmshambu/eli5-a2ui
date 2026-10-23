@@ -73,6 +73,7 @@ agent_requirements = [
     "jsonschema>=4.23",
     "referencing>=0.35",
     "reportlab>=4.2",
+    "python-pptx>=1.0",
 ]
 
 if agent:
