@@ -28,7 +28,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from . import brand
 from .charts import fmt
-from .schema import LEVELS, Chart, Diagram, Explanation
+from .schema import KINDS, LEVELS, Chart, Creation, Diagram, Explanation
 
 MAX_PHOTOS = 2  # section banners, besides the cover; keeps the file well under GE's ~1 MB part limit
 W, H = A4
@@ -375,4 +375,139 @@ def build(e: Explanation, sources: list[dict], level: str = "expert", documents=
     rest = Frame(MARGIN, 18 * mm, BODY_W, H - 38 * mm, id="rest")
     doc.addPageTemplates([PageTemplate("cover", [first], onPage=cover), PageTemplate("body", [rest], onPage=body)])
     doc.build(_story(e, sources, list(documents)))
+    return buf.getvalue()
+
+
+def _palette(c: Creation):
+    """(main, second, highlight) colours for a creation: the creative accent or the theme's cover."""
+    if c.theme == "creative":
+        a1, _, a3, ah = brand.ACCENTS.get(c.accent, brand.ACCENTS["cobalt"])
+        return colors.HexColor(a1), colors.HexColor(a3), colors.HexColor(ah)
+    wash, _, _, hl = COVERS.get(c.theme, COVERS["corporate"])
+    return wash, BLUE, hl
+
+
+def _wrap_draw(canvas, para: Paragraph, x: float, y: float, w: float) -> float:
+    """Draws `para` with its top at y; returns the y under it."""
+    _, h = para.wrap(w, H)
+    para.drawOn(canvas, x, y - h)
+    return y - h
+
+
+def _poster(c: Creation, buf) -> None:
+    """A one-page A4 poster: the photo across the top, the message on the accent colour, the
+    call to action on a white band at the foot."""
+    from reportlab.pdfgen.canvas import Canvas
+    main, second, hl = _palette(c)
+    cv = Canvas(buf, pagesize=A4)
+    cv.setTitle(c.title)
+    cv.setAuthor("KPMG")
+    cv.setFillColor(main)
+    cv.rect(0, 0, W, H, stroke=0, fill=1)
+    cv.setFillColor(second)
+    cv.setFillAlpha(0.45)
+    cv.circle(W * 0.95, H * 0.12, 70 * mm, stroke=0, fill=1)
+    cv.setFillAlpha(1)
+    ph = W / 2.5
+    cv.drawImage(_photo(c.hero_photo), 0, H - ph, W, ph)
+    cv.drawImage(ImageReader(str(brand.ASSETS / "kpmg-logo-white.png")), MARGIN, H - ph - 20 * mm,
+                 width=26 * mm, height=10.2 * mm, mask="auto")
+    x, w = MARGIN, BODY_W
+    words = c.title.split()
+    k = 0 if len(words) < 3 else 2 if len(words) > 4 else 1
+    title = _x(" ".join(words[:len(words) - k]))
+    if k:
+        title += f' <font color="{hl.hexval().replace("0x", "#")}">{_x(" ".join(words[-k:]))}</font>'
+    white = colors.white
+    y = _wrap_draw(cv, Paragraph(title, ParagraphStyle("pt", parent=_S["title"], fontSize=40, leading=44)), x, H - ph - 28 * mm, w)
+    y = _wrap_draw(cv, Paragraph(_x(c.tagline), ParagraphStyle("pl", parent=_S["lede"], fontSize=16, leading=21)), x, y - 5 * mm, w)
+    bullet = ParagraphStyle("pb", parent=_S["bullet"], textColor=white, fontSize=13, leading=18)
+    y -= 4 * mm
+    for t in c.points[:4]:
+        y = _wrap_draw(cv, Paragraph(_x(t), bullet, bulletText="■"), x, y, w) - 1 * mm
+    if c.details:
+        fy = 50 * mm if c.cta else 30 * mm
+        cv.setStrokeColor(colors.Color(1, 1, 1, alpha=0.5))
+        cv.line(x, fy + 16 * mm, W - MARGIN, fy + 16 * mm)
+        cw = w / min(len(c.details), 4)
+        for i, d in enumerate(c.details[:4]):
+            _wrap_draw(cv, Paragraph(_x(d.label.upper()), ParagraphStyle("dl", parent=_S["eyebrow"], textColor=hl, fontSize=9)),
+                       x + i * cw, fy + 13 * mm, cw - 4 * mm)
+            _wrap_draw(cv, Paragraph(_x(d.value), ParagraphStyle("dv", parent=_S["lede"], fontName="Sans-Bold", fontSize=12, leading=15)),
+                       x + i * cw, fy + 8 * mm, cw - 4 * mm)
+    if c.cta:
+        cv.setFillColor(white)
+        cv.rect(0, 14 * mm, W, 22 * mm, stroke=0, fill=1)
+        cv.setFillColor(BLUE)
+        cv.setFont("Sans-Bold", 18)
+        cv.drawString(x, 22 * mm, _EMOJI.sub("", c.cta)[:60])
+        cv.setFont("Sans", 9)
+        cv.setFillColor(MUTED)
+        cv.drawRightString(W - MARGIN, 23 * mm, "KPMG. Make the Difference.")
+    cv.setFont("Sans", 7)
+    cv.setFillColor(colors.Color(1, 1, 1, alpha=0.8))
+    cv.drawString(MARGIN, 7 * mm, LEGAL)
+    cv.showPage()
+    cv.save()
+
+
+def _document(c: Creation, buf) -> None:
+    """An email, post or one-pager as a branded A4 page: accent band with the logo, the photo,
+    then the text in reading order."""
+    main, _, _ = _palette(c)
+    band = 22 * mm
+    ph = BODY_W / 2.5
+
+    def page(canvas, _doc):
+        canvas.saveState()
+        canvas.setFillColor(main)
+        canvas.rect(0, H - band, W, band, stroke=0, fill=1)
+        canvas.drawImage(ImageReader(str(brand.ASSETS / "kpmg-logo-white.png")), MARGIN, H - band + 6 * mm,
+                         width=24 * mm, height=9.4 * mm, mask="auto")
+        canvas.setFont("Sans-Bold", 9)
+        canvas.setFillColor(colors.white)
+        canvas.drawRightString(W - MARGIN, H - band + 9 * mm, KINDS[c.kind][0].upper())
+        canvas.setFont("Sans", 7)
+        canvas.setFillColor(MUTED)
+        canvas.drawString(MARGIN, 10 * mm, LEGAL)
+        canvas.drawRightString(W - MARGIN, 10 * mm, f"KPMG. Make the Difference.   {canvas.getPageNumber()}")
+        canvas.restoreState()
+
+    story = []
+    if c.kind == "email" and c.subject:
+        story += [_p("Subject: " + c.subject, "h4"), Spacer(1, 2 * mm)]
+    story += [Image(_photo_bytes(c.hero_photo), width=BODY_W, height=ph), Spacer(1, 5 * mm),
+              Paragraph(_x(c.title), ParagraphStyle("dt", parent=_S["h2"], fontSize=22, leading=26, spaceBefore=0)),
+              Paragraph(_x(c.tagline), ParagraphStyle("dg", parent=_S["h4"], textColor=main))]
+    if c.kind == "email" and c.greeting:
+        story.append(_p(c.greeting))
+    story += [_p(t) for t in c.body]
+    for b in c.blocks:
+        story += [Paragraph(_x(b.heading), _S["h4"]), _p(b.text), *_bullets(b.points)]
+    story += _bullets(c.points)
+    if c.details:
+        t = Table([[_p(d.label, "h4"), _p(d.value)] for d in c.details], colWidths=[40 * mm, BODY_W - 40 * mm])
+        t.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        story += [Spacer(1, 3 * mm), t]
+    if c.cta:
+        cta = Table([[Paragraph(_x(c.cta), ParagraphStyle("cta", parent=_S["h4"], textColor=colors.white))]])
+        cta.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), main), ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                                 ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7)]))
+        cta.hAlign = "LEFT"
+        story += [Spacer(1, 4 * mm), cta]
+    if c.kind == "email" and c.sign_off:
+        story += [Spacer(1, 4 * mm)] + [_p(line) for line in c.sign_off.splitlines()]
+    if c.kind == "social" and c.hashtags:
+        story += [Spacer(1, 3 * mm), Paragraph(_x(" ".join("#" + h.lstrip("#") for h in c.hashtags)),
+                                               ParagraphStyle("ht", parent=_S["body"], textColor=COBALT))]
+    doc = BaseDocTemplate(buf, pagesize=A4, title=c.title, author="KPMG", subject=c.tagline)
+    frame = Frame(MARGIN, 18 * mm, BODY_W, H - band - 26 * mm, id="body")
+    doc.addPageTemplates([PageTemplate("page", [frame], onPage=page)])
+    doc.build(story)
+
+
+def build_creation(c: Creation) -> bytes:
+    """The PDF bytes for a poster, email, social post or one-pager."""
+    buf = io.BytesIO()
+    (_poster if c.kind == "poster" else _document)(c, buf)
     return buf.getvalue()

@@ -8,6 +8,7 @@ by Gemini 3 and later). If the model rejects that combination, fall back for goo
 calls: research() with grounding, then write() with the schema.
 The client is passed in so tests can use a fake one.
 """
+import json
 import logging
 import os
 
@@ -16,7 +17,7 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
 from . import brand
-from .schema import DEFAULT_LEVEL, LEVELS, Explanation
+from .schema import DEFAULT_LEVEL, KINDS, LEVELS, Creation, Explanation
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +89,67 @@ DOC_LENGTH = {
               "3 or 4 key stats; caveats for anything unclear or open; 4 to 8 glossary terms.",
     "eli5": "2 to 4 short sections covering the document's main points in order; 2 key stats; no caveats; no glossary.",
 }
+
+CREATE_PROMPT = """You create on-brand KPMG content for KPMG professionals: posters, emails, social posts
+and one-pagers. Make what the user asks for below.
+Kinds: {kinds}
+Pick the kind that matches the request ({hint}). Write for the format: {length}
+Facts: use only what the user, their document or the briefing gives you. Never invent names,
+people, dates, times, places, prices, numbers or links: where one is needed and not given,
+write a [placeholder] in square brackets, e.g. [Date], [Venue], [Your name], [Link].
+Tone: professional, clear and human, KPMG's voice; follow any tone the user asks for.
+Plain text only: no markdown, HTML or emoji in the text (emojis only in the emoji fields).
+Art direction: theme creative; pick the accent and one emoji that suit the message, and the
+brand photo that fits best, by id, from this list:
+{photos}
+The 3 ideas are quick changes the user might want next (tone, length, a detail, another format).
+{context}
+Request: {request}"""
+
+CREATE_LENGTH = {k: v[2] for k, v in KINDS.items()}
+
+
+def _brief(page: dict | None) -> str:
+    """The briefing the user just saw, so "make a poster of this" has something to work from."""
+    if not page:
+        return ""
+    e = page.get("explanation") or {}
+    stats = "; ".join(f"{s.get('value')} {s.get('label')}" for s in e.get("key_stats") or [])
+    lines = [f"Title: {e.get('title')}", f"Summary: {e.get('summary')}",
+             "Takeaways: " + " | ".join(e.get("takeaways") or []), f"Key stats: {stats}"]
+    return "Briefing the user just read (use it if the request refers to it, e.g. 'this' or 'it'):\n" + "\n".join(lines)
+
+
+async def create(client, request: str, kind: str | None = None, docs: list | None = None,
+                 previous: dict | None = None, page: dict | None = None) -> Creation:
+    """One structured call that writes a poster, email, social post or one-pager. `previous`
+    is the creation being changed ("make it shorter"); `page` the briefing just shown."""
+    context = []
+    if previous:
+        context.append("The user is changing this earlier draft; keep what they did not ask to change "
+                       "(change the kind only if they ask for another format):\n" + json.dumps(previous, ensure_ascii=False))
+    elif page:
+        context.append(_brief(page))
+    if docs:
+        context.append("The user's document(s) are attached above; take the facts from them.")
+    prompt = CREATE_PROMPT.format(
+        kinds="; ".join(f"{k} = {v[1]}" for k, v in KINDS.items()),
+        hint=f"probably {kind}" if kind else "infer it from the request",
+        length=" ".join(f"{v[0]}: {v[2]}" for v in KINDS.values()) if not kind else CREATE_LENGTH[kind],
+        photos=brand.catalogue(), context="\n\n".join(context), request=request)
+    parts = [*(d.part for d in docs or []), genai_types.Part(text=prompt)]
+    response = await client.aio.models.generate_content(
+        model=model_name(),
+        contents=[genai_types.Content(role="user", parts=parts)],
+        config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json", response_schema=Creation,
+            thinking_config=_thinking(), temperature=0.7,
+        ),
+    )
+    if isinstance(response.parsed, Creation):
+        return response.parsed
+    return Creation.model_validate_json(response.text)
+
 
 # None until the first call tells us whether search + response_schema work together.
 _combined_ok: bool | None = None

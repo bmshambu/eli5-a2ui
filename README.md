@@ -19,6 +19,27 @@ The page (`explainer.py`) follows the layout patterns in `brand/extract/05-layou
 
 **Motion.** The cover works like a motion poster: the brand photo slowly zooms and pans, outlined brand frames drift, a light sweep crosses it once, and the logo, eyebrow, title, lede and tags rise in one after another. Further down, KPI numbers count up when they come into view (years are left alone), and sections, diagrams and charts animate as they scroll into view (diagram nodes pop in, bars grow, donut rings sweep, lines wipe in). It is all CSS transforms and opacity plus a small script, so it adds no download weight. Without JavaScript the page shows in full. When "reduce motion" is on (Windows "Animation effects" off, common on managed laptops), the page keeps only fades and count-ups, and a **Play motion** button on the cover turns the full motion poster on.
 
+## Create: posters, emails, social posts, one-pagers
+
+Besides explaining, the agent makes things on request in the same brand (`agent/maker.py`):
+"Create a poster for our AI training week", "Draft an email inviting the team to the town hall",
+"Write a LinkedIn post about …", "Make a one-pager on …". One structured model call
+(`llm.create`, no web search) writes a `Creation` (schema.py); names, dates, places and links
+the user did not give become `[placeholders]`, never invented.
+
+- Each format is laid out as the real thing: a portrait poster, an email as it lands in the
+  inbox, a LinkedIn-style post with its image, a one-page flyer. Creative look by default
+  (accent, emoji, motion); the theme bar switches it without a model call.
+- Emails and posts are also given as plain text, in a copy box on the page and in the chat
+  reply, ready to paste into Outlook or LinkedIn.
+- **Download PDF** works for creations too (`pdf.build_creation`: an A4 poster, or a branded page).
+- Changes edit the last draft: the page's "Change it" buttons, "Turn it into an email", or
+  typed changes such as "make it shorter" or "more formal" right after a creation.
+- "Turn this into a poster" right after a briefing works from that briefing; with an uploaded
+  document, the facts come from the document.
+- Session state: `eli5_create` (the last request and draft) and `eli5_mode` (whether the last
+  answer was a creation or an explanation, so "make it simpler" goes to the right place).
+
 ## Creative look (default)
 
 New answers use the **Creative** look, which mixes the whole brand library instead of following one recipe. The model does the art direction for each topic, so different topics look different:
@@ -78,9 +99,11 @@ The other three are `cycle`, `parts` and `compare`. All of them are built live i
 
 A section can carry a `chart` (bar, line or donut) when it turns on 3 or more comparable numbers. The prompt allows only numbers stated in the document or the sources, exactly as given, with a `source` note such as "Table 2, p. 7"; if the numbers are not there, there is no chart. Bars and labels are HTML so text stays at 14px or more at any panel width; series that don't match the labels are dropped rather than drawn wrong.
 
-## Download PDF
+## Download PDF and PowerPoint
 
 GE's chat frame blocks printing and downloads, so the page can't save itself. A native **Download PDF** button sits under the frame. Clicking it sends a `pdf` action with the question and level; the agent rebuilds that explanation from session state (`eli5_pages`, the last 4 shown, so no new model call) and `pdf.py` turns it into a KPMG-branded A4 PDF with reportlab: cover with the brand photo and white logo, key stats, sections with charts (vector bar, line, donut) and diagrams (numbered steps, compare columns, 2x2 matrix), caveats, glossary, document name and sources. It uses the embedded Liberation Sans (Arial-metric, OFL, `agent/assets/fonts`) so symbols such as λ and ⁴ render. The PDF goes back in chat as a file part (`application/pdf`), which ADK sends as an A2A FilePart; a PDF for an old card that is no longer in state is explained again first.
+
+**Download PowerPoint** works the same way (`pptx` action, `slides.py`, python-pptx): a 16:9 deck with the cover (photo in the theme or accent colour), an "at a glance" slide with the key stats, one slide per section (key points on the left; the chart as a native, editable PowerPoint chart, the diagram as shapes, or the photo on the right; the full text in the speaker notes), caveats and glossary, sources, and a closing slide. For created content, a poster is one portrait slide and an email, post or one-pager is a cover and a content slide. It goes back as a file part (`application/vnd.openxmlformats-officedocument.presentationml.presentation`).
 
 ## Layout
 
